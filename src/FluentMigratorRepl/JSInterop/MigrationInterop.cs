@@ -29,4 +29,16 @@ public class MigrationInterop
     {
         return await _executor.GetTableDataAsync(tableName);
     }
+
+    [JSInvokable]
+    public async Task<string> ListMigrationsAsync(string code)
+    {
+        return await _executor.ListMigrationsAsync(code);
+    }
+
+    [JSInvokable]
+    public async Task<string> PreviewMigrationAsync(string code, long version)
+    {
+        return await _executor.PreviewMigrationAsync(code, version);
+    }
 }

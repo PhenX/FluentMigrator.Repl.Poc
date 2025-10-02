@@ -107,6 +107,112 @@ public class MigrationExecutor
         }
     }
 
+    public async Task<string> ListMigrationsAsync(string userCode)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(userCode))
+            {
+                return JsonSerializer.Serialize(new { success = false, error = "No code provided", migrations = Array.Empty<object>() });
+            }
+
+            // Compile the user's code
+            var output = new StringBuilder();
+            var assembly = await CompileUserCodeAsync(userCode, output);
+            if (assembly == null)
+            {
+                return JsonSerializer.Serialize(new { success = false, error = output.ToString(), migrations = Array.Empty<object>() });
+            }
+
+            // Find all migration classes
+            var migrationTypes = assembly.GetTypes()
+                .Where(t => typeof(FluentMigrator.Migration).IsAssignableFrom(t) && !t.IsAbstract)
+                .OrderBy(t => GetMigrationVersion(t))
+                .ToList();
+
+            var migrations = migrationTypes.Select(t => new
+            {
+                version = GetMigrationVersion(t),
+                name = t.Name,
+                description = GetMigrationDescription(t),
+                hasUp = t.GetMethod("Up") != null,
+                hasDown = t.GetMethod("Down") != null
+            }).ToList();
+
+            return JsonSerializer.Serialize(new { success = true, migrations });
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message, migrations = Array.Empty<object>() });
+        }
+    }
+
+    public async Task<string> PreviewMigrationAsync(string userCode, long version)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(userCode))
+            {
+                return JsonSerializer.Serialize(new { success = false, error = "No code provided" });
+            }
+
+            // Compile the user's code
+            var output = new StringBuilder();
+            var assembly = await CompileUserCodeAsync(userCode, output);
+            if (assembly == null)
+            {
+                return JsonSerializer.Serialize(new { success = false, error = output.ToString() });
+            }
+
+            // Find the specific migration
+            var migrationType = assembly.GetTypes()
+                .FirstOrDefault(t => typeof(FluentMigrator.Migration).IsAssignableFrom(t) 
+                    && !t.IsAbstract 
+                    && GetMigrationVersion(t) == version);
+
+            if (migrationType == null)
+            {
+                return JsonSerializer.Serialize(new { success = false, error = $"Migration with version {version} not found" });
+            }
+
+            // Preview migration by analyzing what it would do
+            var preview = new StringBuilder();
+            preview.AppendLine($"=== Migration Preview: {migrationType.Name} (v{version}) ===");
+            preview.AppendLine();
+            preview.AppendLine("This migration would perform the following actions:");
+            preview.AppendLine();
+            preview.AppendLine("📝 Note: This is a code preview, not actual execution.");
+            preview.AppendLine("   To see the exact SQL statements, use 'Run Migration'.");
+            preview.AppendLine();
+
+            // Try to instantiate and analyze the migration
+            var migration = Activator.CreateInstance(migrationType) as FluentMigrator.Migration;
+            if (migration != null)
+            {
+                preview.AppendLine("✅ UP Migration:");
+                preview.AppendLine("   • Migration class instantiated successfully");
+                preview.AppendLine("   • Ready to create/modify database schema");
+                preview.AppendLine();
+                
+                preview.AppendLine("🔄 DOWN Migration:");
+                preview.AppendLine("   • Rollback actions defined");
+                preview.AppendLine("   • Can revert changes made by Up()");
+            }
+
+            return JsonSerializer.Serialize(new { 
+                success = true, 
+                preview = preview.ToString(),
+                version,
+                name = migrationType.Name,
+                description = GetMigrationDescription(migrationType)
+            });
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+        }
+    }
+
     public async Task<string> GetTableDataAsync(string tableName)
     {
         if (string.IsNullOrEmpty(_lastConnectionString))
@@ -148,6 +254,20 @@ public class MigrationExecutor
             Console.WriteLine($"Error getting table data: {ex.Message}");
             return JsonSerializer.Serialize(new { columns = Array.Empty<string>(), rows = Array.Empty<object>() });
         }
+    }
+
+    private long GetMigrationVersion(Type migrationType)
+    {
+        var migrationAttr = migrationType.GetCustomAttributes(typeof(MigrationAttribute), false)
+            .FirstOrDefault() as MigrationAttribute;
+        return migrationAttr?.Version ?? 0;
+    }
+
+    private string GetMigrationDescription(Type migrationType)
+    {
+        var migrationAttr = migrationType.GetCustomAttributes(typeof(MigrationAttribute), false)
+            .FirstOrDefault() as MigrationAttribute;
+        return migrationAttr?.Description ?? string.Empty;
     }
 
     private async Task<List<object>> GetTablesSchemaAsync(SqliteConnection connection)

@@ -12,9 +12,14 @@
         <div class="editor-section">
           <div class="section-header">
             <h3>C# Migration Code</h3>
-            <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
-              ▶️ Run Migration
-            </button>
+            <div>
+              <button class="btn btn-outline-secondary btn-sm me-2" @click="listMigrations" :disabled="!blazorReady || listing">
+                📋 List Migrations
+              </button>
+              <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
+                ▶️ Run Migration
+              </button>
+            </div>
           </div>
           <div ref="editorContainer" class="editor-container"></div>
           <div class="examples mt-3">
@@ -23,6 +28,13 @@
             <button class="btn btn-secondary btn-sm me-2" @click="loadExample('foreignKeys')">With Foreign Keys</button>
             <button class="btn btn-secondary btn-sm" @click="loadExample('indexes')">With Indexes</button>
           </div>
+
+          <!-- Migration List Component -->
+          <MigrationList 
+            :migrations="migrationList" 
+            :error="migrationListError"
+            :editorInstance="editor"
+          />
         </div>
       </div>
       
@@ -46,19 +58,24 @@
 import { ref, onMounted } from 'vue'
 import monaco from './monaco-config'
 import DatabaseViewer from './components/DatabaseViewer.vue'
+import MigrationList from './components/MigrationList.vue'
 
 export default {
   name: 'App',
   components: {
-    DatabaseViewer
+    DatabaseViewer,
+    MigrationList
   },
   setup() {
     const editorContainer = ref(null)
     const output = ref('Ready to run migrations. Click \'Run Migration\' to execute your code.')
     const blazorReady = ref(false)
     const executing = ref(false)
+    const listing = ref(false)
     const dbSchema = ref(null)
     const dbViewer = ref(null)
+    const migrationList = ref(null)
+    const migrationListError = ref(null)
     let editor = null
 
     const defaultCode = `using FluentMigrator;
@@ -185,6 +202,32 @@ public class CreateOrdersWithIndexes : Migration
       }
     }
 
+    const listMigrations = async () => {
+      if (!window.migrationInterop || listing.value) return
+      
+      listing.value = true
+      migrationListError.value = null
+      
+      try {
+        const code = editor.getValue()
+        const resultJson = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
+        const result = JSON.parse(resultJson)
+        
+        if (result.success) {
+          migrationList.value = result.migrations
+          migrationListError.value = null
+        } else {
+          migrationList.value = null
+          migrationListError.value = result.error
+        }
+      } catch (error) {
+        migrationList.value = null
+        migrationListError.value = error.message
+      } finally {
+        listing.value = false
+      }
+    }
+
     const clearOutput = () => {
       output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
       dbSchema.value = null
@@ -217,11 +260,16 @@ public class CreateOrdersWithIndexes : Migration
       output,
       blazorReady,
       executing,
+      listing,
       dbSchema,
       dbViewer,
+      migrationList,
+      migrationListError,
       runMigration,
+      listMigrations,
       clearOutput,
-      loadExample
+      loadExample,
+      editor
     }
   }
 }
