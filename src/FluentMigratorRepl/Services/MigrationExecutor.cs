@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using FluentMigrator.Runner;
 using FluentMigrator;
 using Microsoft.Data.Sqlite;
@@ -15,6 +16,7 @@ public class MigrationExecutor
 {
     private readonly IResourceResolver _resourceResolver;
     private readonly IBlazorHttpClientFactory _httpClientFactory;
+    private string _lastConnectionString = "";
 
     public MigrationExecutor(IResourceResolver resourceResolver, IBlazorHttpClientFactory httpClientFactory)
     {
@@ -51,21 +53,16 @@ public class MigrationExecutor
             output.AppendLine();
             
             // Create an in-memory SQLite database
-            var connectionString = "Data Source=sample.db;";
-            output.AppendLine($"🔗 Connection: {connectionString}");
+            _lastConnectionString = "Data Source=sample.db;";
+            output.AppendLine($"🔗 Connection: {_lastConnectionString}");
             output.AppendLine();
             
             // Execute migrations from the compiled assembly
             output.AppendLine("⚡ Executing migrations...");
-            await ExecuteMigrationsAsync(connectionString, assembly, output);
+            await ExecuteMigrationsAsync(_lastConnectionString, assembly, output);
             
             output.AppendLine();
             output.AppendLine("✅ Migration executed successfully!");
-            output.AppendLine();
-            
-            // Show the database schema
-            output.AppendLine("=== Database Schema ===");
-            await ShowDatabaseSchemaAsync(connectionString, output);
         }
         catch (Exception ex)
         {
@@ -80,6 +77,212 @@ public class MigrationExecutor
         }
         
         return output.ToString();
+    }
+
+    public async Task<string> GetDatabaseSchemaAsync()
+    {
+        if (string.IsNullOrEmpty(_lastConnectionString))
+        {
+            return JsonSerializer.Serialize(new { tables = Array.Empty<object>(), indexes = Array.Empty<object>(), views = Array.Empty<object>() });
+        }
+
+        try
+        {
+            using var connection = new SqliteConnection(_lastConnectionString);
+            await connection.OpenAsync();
+
+            var schema = new
+            {
+                tables = await GetTablesSchemaAsync(connection),
+                indexes = await GetIndexesSchemaAsync(connection),
+                views = await GetViewsSchemaAsync(connection)
+            };
+
+            return JsonSerializer.Serialize(schema);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting schema: {ex.Message}");
+            return JsonSerializer.Serialize(new { tables = Array.Empty<object>(), indexes = Array.Empty<object>(), views = Array.Empty<object>() });
+        }
+    }
+
+    public async Task<string> GetTableDataAsync(string tableName)
+    {
+        if (string.IsNullOrEmpty(_lastConnectionString))
+        {
+            return JsonSerializer.Serialize(new { columns = Array.Empty<string>(), rows = Array.Empty<object>() });
+        }
+
+        try
+        {
+            using var connection = new SqliteConnection(_lastConnectionString);
+            await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM \"{tableName}\"";
+
+            using var reader = await command.ExecuteReaderAsync();
+            
+            var columns = new List<string>();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                columns.Add(reader.GetName(i));
+            }
+
+            var rows = new List<Dictionary<string, object?>>();
+            while (await reader.ReadAsync())
+            {
+                var row = new Dictionary<string, object?>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    row[columns[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                }
+                rows.Add(row);
+            }
+
+            return JsonSerializer.Serialize(new { columns, rows });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting table data: {ex.Message}");
+            return JsonSerializer.Serialize(new { columns = Array.Empty<string>(), rows = Array.Empty<object>() });
+        }
+    }
+
+    private async Task<List<object>> GetTablesSchemaAsync(SqliteConnection connection)
+    {
+        var tables = new List<object>();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT name 
+            FROM sqlite_master 
+            WHERE type = 'table' 
+              AND name NOT LIKE 'sqlite_%'
+              AND name != 'VersionInfo'
+            ORDER BY name";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var tableName = reader.GetString(0);
+            var columns = await GetTableColumnsAsync(connection, tableName);
+            
+            tables.Add(new
+            {
+                name = tableName,
+                columns = columns
+            });
+        }
+
+        return tables;
+    }
+
+    private async Task<List<object>> GetTableColumnsAsync(SqliteConnection connection, string tableName)
+    {
+        var columns = new List<object>();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{tableName}\")";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var constraints = new List<string>();
+            
+            var notNull = reader.GetInt32(3) == 1;
+            var isPk = reader.GetInt32(5) == 1;
+            var defaultValue = reader.IsDBNull(4) ? null : reader.GetString(4);
+
+            if (isPk) constraints.Add("PRIMARY KEY");
+            if (notNull && !isPk) constraints.Add("NOT NULL");
+            if (defaultValue != null) constraints.Add($"DEFAULT {defaultValue}");
+
+            columns.Add(new
+            {
+                name = reader.GetString(1),
+                type = reader.GetString(2),
+                constraints = constraints
+            });
+        }
+
+        return columns;
+    }
+
+    private async Task<List<object>> GetIndexesSchemaAsync(SqliteConnection connection)
+    {
+        var indexes = new List<object>();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT name, tbl_name, sql 
+            FROM sqlite_master 
+            WHERE type = 'index' 
+              AND name NOT LIKE 'sqlite_%'
+            ORDER BY tbl_name, name";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var indexName = reader.GetString(0);
+            var tableName = reader.GetString(1);
+            var sql = reader.IsDBNull(2) ? "" : reader.GetString(2);
+            
+            // Get index columns
+            var columns = await GetIndexColumnsAsync(connection, indexName);
+            var isUnique = sql.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase);
+
+            indexes.Add(new
+            {
+                name = indexName,
+                tableName = tableName,
+                columns = columns,
+                unique = isUnique
+            });
+        }
+
+        return indexes;
+    }
+
+    private async Task<List<string>> GetIndexColumnsAsync(SqliteConnection connection, string indexName)
+    {
+        var columns = new List<string>();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA index_info(\"{indexName}\")";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(2));
+        }
+
+        return columns;
+    }
+
+    private async Task<List<object>> GetViewsSchemaAsync(SqliteConnection connection)
+    {
+        var views = new List<object>();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT name, sql 
+            FROM sqlite_master 
+            WHERE type = 'view'
+            ORDER BY name";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            views.Add(new
+            {
+                name = reader.GetString(0),
+                sql = reader.GetString(1)
+            });
+        }
+
+        return views;
     }
     
     private async Task<Assembly?> CompileUserCodeAsync(string userCode, StringBuilder output)
@@ -181,58 +384,6 @@ public class MigrationExecutor
         output.AppendLine("✓ Migrations applied successfully");
         
         await Task.CompletedTask;
-    }
-    
-    private async Task ShowDatabaseSchemaAsync(string connectionString, StringBuilder output)
-    {
-        using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync();
-        
-        using var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT type, name, sql 
-            FROM sqlite_master 
-            WHERE type IN ('table', 'index') 
-              AND name NOT LIKE 'sqlite_%'
-              AND name NOT LIKE 'VersionInfo'
-            ORDER BY type DESC, name";
-        
-        using var reader = await command.ExecuteReaderAsync();
-        
-        var hasResults = false;
-        while (await reader.ReadAsync())
-        {
-            hasResults = true;
-            var type = reader.GetString(0);
-            var name = reader.GetString(1);
-            var sql = reader.IsDBNull(2) ? "" : reader.GetString(2);
-            
-            if (type == "table")
-            {
-                output.AppendLine();
-                output.AppendLine($"📋 TABLE: {name}");
-                output.AppendLine("─────────────────────────");
-                if (!string.IsNullOrWhiteSpace(sql))
-                {
-                    output.AppendLine(sql);
-                }
-            }
-            else if (type == "index")
-            {
-                output.AppendLine();
-                output.AppendLine($"🔍 INDEX: {name}");
-                if (!string.IsNullOrWhiteSpace(sql))
-                {
-                    output.AppendLine($"   {sql}");
-                }
-            }
-        }
-        
-        if (!hasResults)
-        {
-            output.AppendLine();
-            output.AppendLine("(No tables or indexes created)");
-        }
     }
     
     private async Task<string> ResolveResourceStreamUri(string resource)

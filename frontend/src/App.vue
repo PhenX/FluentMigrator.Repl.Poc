@@ -33,6 +33,9 @@
             <button class="btn btn-secondary btn-sm" @click="clearOutput">Clear</button>
           </div>
           <pre class="output-container">{{ output }}</pre>
+          
+          <!-- Database Viewer Component -->
+          <DatabaseViewer ref="dbViewer" :schema="dbSchema" />
         </div>
       </div>
     </div>
@@ -42,14 +45,20 @@
 <script>
 import { ref, onMounted } from 'vue'
 import monaco from './monaco-config'
+import DatabaseViewer from './components/DatabaseViewer.vue'
 
 export default {
   name: 'App',
+  components: {
+    DatabaseViewer
+  },
   setup() {
     const editorContainer = ref(null)
     const output = ref('Ready to run migrations. Click \'Run Migration\' to execute your code.')
     const blazorReady = ref(false)
     const executing = ref(false)
+    const dbSchema = ref(null)
+    const dbViewer = ref(null)
     let editor = null
 
     const defaultCode = `using FluentMigrator;
@@ -160,6 +169,15 @@ public class CreateOrdersWithIndexes : Migration
         const code = editor.getValue()
         const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code)
         output.value = result
+        
+        // Load the database schema
+        const schemaJson = await window.migrationInterop.invokeMethodAsync('GetDatabaseSchemaAsync')
+        dbSchema.value = JSON.parse(schemaJson)
+        
+        // Refresh table data in the viewer
+        if (dbViewer.value) {
+          dbViewer.value.refreshAllData()
+        }
       } catch (error) {
         output.value = `Error: ${error.message}`
       } finally {
@@ -169,6 +187,7 @@ public class CreateOrdersWithIndexes : Migration
 
     const clearOutput = () => {
       output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
+      dbSchema.value = null
     }
 
     const loadExample = (exampleName) => {
@@ -198,6 +217,8 @@ public class CreateOrdersWithIndexes : Migration
       output,
       blazorReady,
       executing,
+      dbSchema,
+      dbViewer,
       runMigration,
       clearOutput,
       loadExample
