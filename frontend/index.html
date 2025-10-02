@@ -13,6 +13,11 @@
     
     <!-- Blazor WebAssembly -->
     <script>
+      // Function to get the base URL for HTTP requests
+      window.getBaseUrl = function() {
+        return window.location.origin;
+      };
+      
       // Function to receive the migration interop from Blazor
       window.setMigrationInterop = function(interop) {
         window.migrationInterop = interop;

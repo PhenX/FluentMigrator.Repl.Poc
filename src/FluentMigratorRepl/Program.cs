@@ -9,6 +9,12 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
 // No UI components needed - this is headless WASM for Vue
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+
+// Register services for Webcil assembly loading
+builder.Services.AddSingleton<IResourceResolver, ResourceResolver>();
+builder.Services.AddSingleton<IBlazorHttpClientFactory, BlazorHttpClientFactory>();
+
+// Register migration services
 builder.Services.AddScoped<MigrationExecutor>();
 builder.Services.AddScoped<MigrationInterop>();
 

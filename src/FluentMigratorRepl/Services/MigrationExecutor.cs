@@ -7,11 +7,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
+using FluentMigratorRepl.Webcil;
 
 namespace FluentMigratorRepl.Services;
 
 public class MigrationExecutor
 {
+    private readonly IResourceResolver _resourceResolver;
+    private readonly IBlazorHttpClientFactory _httpClientFactory;
+
+    public MigrationExecutor(IResourceResolver resourceResolver, IBlazorHttpClientFactory httpClientFactory)
+    {
+        _resourceResolver = resourceResolver;
+        _httpClientFactory = httpClientFactory;
+    }
+
     public async Task<string> ExecuteMigrationCodeAsync(string userCode)
     {
         var output = new StringBuilder();
@@ -80,16 +90,30 @@ public class MigrationExecutor
             // Parse the user's code
             var syntaxTree = CSharpSyntaxTree.ParseText(userCode);
             
-            // Get references to required assemblies
+            // Get references to required assemblies from WASM framework
             var references = new List<MetadataReference>
             {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Migration).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(MigrationAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
-                MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
-                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+                await GetMetadataReferenceAsync("netstandard.wasm"),
+                await GetMetadataReferenceAsync("System.wasm"),
+                await GetMetadataReferenceAsync("System.Collections.wasm"),
+                await GetMetadataReferenceAsync("System.ComponentModel.Primitives.wasm"),
+                await GetMetadataReferenceAsync("System.ComponentModel.TypeConverter.wasm"),
+                await GetMetadataReferenceAsync("System.ComponentModel.wasm"),
+                await GetMetadataReferenceAsync("System.Console.wasm"),
+                await GetMetadataReferenceAsync("System.Data.Common.wasm"),
+                await GetMetadataReferenceAsync("System.Linq.wasm"),
+                await GetMetadataReferenceAsync("System.Private.CoreLib.wasm"),
+                await GetMetadataReferenceAsync("System.Runtime.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Data.Sqlite.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.Abstractions.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.Abstractions.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.wasm"),
+                await GetMetadataReferenceAsync("Microsoft.Extensions.Options.wasm"),
+                await GetMetadataReferenceAsync("FluentMigrator.Abstractions.wasm"),
+                await GetMetadataReferenceAsync("FluentMigrator.Runner.Core.wasm"),
+                await GetMetadataReferenceAsync("FluentMigrator.Runner.SQLite.wasm"),
+                await GetMetadataReferenceAsync("FluentMigrator.wasm"),
             };
             
             // Create compilation
@@ -210,6 +234,22 @@ public class MigrationExecutor
             output.AppendLine();
             output.AppendLine("(No tables or indexes created)");
         }
+    }
+    
+    private async Task<string> ResolveResourceStreamUri(string resource)
+    {
+        var resolved = await _resourceResolver.ResolveResource(resource);
+        return $"/_framework/{resolved}";
+    }
+
+    private async Task<PortableExecutableReference> GetMetadataReferenceAsync(string wasmModule)
+    {
+        var httpClient = await _httpClientFactory.CreateHttpClient();
+        await using var stream = await httpClient.GetStreamAsync(await ResolveResourceStreamUri(wasmModule));
+        var peBytes = WebcilConverterUtil.ConvertFromWebcil(stream);
+
+        using var peStream = new MemoryStream(peBytes);
+        return MetadataReference.CreateFromStream(peStream);
     }
 }
 
