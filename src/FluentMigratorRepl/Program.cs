@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using FluentMigratorRepl;
 using FluentMigratorRepl.Services;
 using FluentMigratorRepl.JSInterop;
 using Microsoft.JSInterop;

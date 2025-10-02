@@ -51,8 +51,7 @@ public class MigrationExecutor
             output.AppendLine();
             
             // Create an in-memory SQLite database
-            var connectionString = "Data Source=:memory:";
-            output.AppendLine($"📊 Database: In-Memory SQLite");
+            var connectionString = "Data Source=sample.db;";
             output.AppendLine($"🔗 Connection: {connectionString}");
             output.AppendLine();
             

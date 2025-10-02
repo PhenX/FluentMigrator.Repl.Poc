@@ -1,40 +1,38 @@
 <template>
-  <div class="app">
-    <header class="app-header">
-      <div class="container">
-        <h1>🔧 FluentMigrator REPL</h1>
-        <p>Test FluentMigrator migrations with SQLite in your browser - No server required!</p>
-      </div>
-    </header>
-    
-    <div class="container-fluid mt-4">
-      <div class="row">
-        <div class="col-md-6">
-          <div class="editor-section">
-            <div class="section-header">
-              <h3>C# Migration Code</h3>
-              <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
-                ▶️ Run Migration
-              </button>
-            </div>
-            <div ref="editorContainer" class="editor-container"></div>
-            <div class="examples mt-3">
-              <h4>Quick Examples:</h4>
-              <button class="btn btn-secondary btn-sm me-2" @click="loadExample('simple')">Simple Table</button>
-              <button class="btn btn-secondary btn-sm me-2" @click="loadExample('foreignKeys')">With Foreign Keys</button>
-              <button class="btn btn-secondary btn-sm" @click="loadExample('indexes')">With Indexes</button>
-            </div>
+  <header class="app-header">
+    <div class="container">
+      <h1>🔧 FluentMigrator REPL</h1>
+      <p>Test FluentMigrator migrations with SQLite in your browser - No server required!</p>
+    </div>
+  </header>
+  
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <div class="col-6">
+        <div class="editor-section">
+          <div class="section-header">
+            <h3>C# Migration Code</h3>
+            <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
+              ▶️ Run Migration
+            </button>
+          </div>
+          <div ref="editorContainer" class="editor-container"></div>
+          <div class="examples mt-3">
+            <h4>Quick Examples:</h4>
+            <button class="btn btn-secondary btn-sm me-2" @click="loadExample('simple')">Simple Table</button>
+            <button class="btn btn-secondary btn-sm me-2" @click="loadExample('foreignKeys')">With Foreign Keys</button>
+            <button class="btn btn-secondary btn-sm" @click="loadExample('indexes')">With Indexes</button>
           </div>
         </div>
-        
-        <div class="col-md-6">
-          <div class="output-section">
-            <div class="section-header">
-              <h3>Output</h3>
-              <button class="btn btn-secondary btn-sm" @click="clearOutput">Clear</button>
-            </div>
-            <pre class="output-container">{{ output }}</pre>
+      </div>
+      
+      <div class="col-6">
+        <div class="output-section">
+          <div class="section-header">
+            <h3>Output</h3>
+            <button class="btn btn-secondary btn-sm" @click="clearOutput">Clear</button>
           </div>
+          <pre class="output-container">{{ output }}</pre>
         </div>
       </div>
     </div>
@@ -208,78 +206,3 @@ public class CreateOrdersWithIndexes : Migration
 }
 </script>
 
-<style scoped>
-.app {
-  min-height: 100vh;
-  background: #f5f5f5;
-}
-
-.app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem 0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.app-header p {
-  margin: 0.5rem 0 0 0;
-  opacity: 0.9;
-}
-
-.editor-section, .output-section {
-  background: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  height: calc(100vh - 250px);
-  display: flex;
-  flex-direction: column;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.editor-container {
-  flex: 1;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.output-container {
-  flex: 1;
-  background: #f8f9fa;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 1rem;
-  overflow-y: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.875rem;
-  white-space: pre-wrap;
-  margin: 0;
-}
-
-.examples {
-  padding-top: 1rem;
-  border-top: 1px solid #e0e0e0;
-}
-
-.examples h4 {
-  font-size: 1rem;
-  margin-bottom: 0.5rem;
-}
-</style>
