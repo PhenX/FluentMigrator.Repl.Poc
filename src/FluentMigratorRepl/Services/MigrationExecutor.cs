@@ -4,6 +4,9 @@ using FluentMigrator.Runner;
 using FluentMigrator;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 
 namespace FluentMigratorRepl.Services;
 
@@ -18,15 +21,34 @@ public class MigrationExecutor
             output.AppendLine("=== FluentMigrator REPL - Executing Migration ===");
             output.AppendLine();
             
+            // Validate user code is provided
+            if (string.IsNullOrWhiteSpace(userCode))
+            {
+                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
+                return output.ToString();
+            }
+            
+            output.AppendLine("🔨 Compiling user code...");
+            
+            // Compile the user's code
+            var assembly = await CompileUserCodeAsync(userCode, output);
+            if (assembly == null)
+            {
+                return output.ToString();
+            }
+            
+            output.AppendLine("✓ Code compiled successfully");
+            output.AppendLine();
+            
             // Create an in-memory SQLite database
             var connectionString = "Data Source=:memory:";
             output.AppendLine($"📊 Database: In-Memory SQLite");
             output.AppendLine($"🔗 Connection: {connectionString}");
             output.AppendLine();
             
-            // Execute migrations
+            // Execute migrations from the compiled assembly
             output.AppendLine("⚡ Executing migrations...");
-            await ExecuteMigrationsAsync(connectionString, output);
+            await ExecuteMigrationsAsync(connectionString, assembly, output);
             
             output.AppendLine();
             output.AppendLine("✅ Migration executed successfully!");
@@ -44,12 +66,78 @@ public class MigrationExecutor
             {
                 output.AppendLine($"   Inner: {ex.InnerException.Message}");
             }
+            output.AppendLine();
+            output.AppendLine($"Stack: {ex.StackTrace}");
         }
         
         return output.ToString();
     }
     
-    private async Task ExecuteMigrationsAsync(string connectionString, StringBuilder output)
+    private async Task<Assembly?> CompileUserCodeAsync(string userCode, StringBuilder output)
+    {
+        try
+        {
+            // Parse the user's code
+            var syntaxTree = CSharpSyntaxTree.ParseText(userCode);
+            
+            // Get references to required assemblies
+            var references = new List<MetadataReference>
+            {
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Migration).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(MigrationAttribute).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+            };
+            
+            // Create compilation
+            var assemblyName = $"UserMigration_{Guid.NewGuid():N}";
+            var compilation = CSharpCompilation.Create(
+                assemblyName,
+                new[] { syntaxTree },
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            
+            // Compile to memory stream
+            using var ms = new MemoryStream();
+            EmitResult result = compilation.Emit(ms);
+            
+            if (!result.Success)
+            {
+                output.AppendLine("❌ Compilation failed:");
+                output.AppendLine();
+                
+                var failures = result.Diagnostics.Where(diagnostic =>
+                    diagnostic.IsWarningAsError ||
+                    diagnostic.Severity == DiagnosticSeverity.Error);
+                
+                foreach (var diagnostic in failures)
+                {
+                    output.AppendLine($"  {diagnostic.Id}: {diagnostic.GetMessage()}");
+                    var lineSpan = diagnostic.Location.GetLineSpan();
+                    output.AppendLine($"    at line {lineSpan.StartLinePosition.Line + 1}");
+                }
+                
+                return null;
+            }
+            
+            // Load the compiled assembly
+            ms.Seek(0, SeekOrigin.Begin);
+            var assembly = Assembly.Load(ms.ToArray());
+            
+            await Task.CompletedTask;
+            return assembly;
+        }
+        catch (Exception ex)
+        {
+            output.AppendLine($"❌ Compilation error: {ex.Message}");
+            return null;
+        }
+    }
+    
+    private async Task ExecuteMigrationsAsync(string connectionString, Assembly migrationAssembly, StringBuilder output)
     {
         // Set up FluentMigrator services WITHOUT console logging (causes WASM issues)
         var serviceProvider = new ServiceCollection()
@@ -57,7 +145,7 @@ public class MigrationExecutor
             .ConfigureRunner(rb => rb
                 .AddSQLite()
                 .WithGlobalConnectionString(connectionString)
-                .ScanIn(Assembly.GetExecutingAssembly()).For.Migrations())
+                .ScanIn(migrationAssembly).For.Migrations())
             .BuildServiceProvider(false);
         
         // Run the migrations
