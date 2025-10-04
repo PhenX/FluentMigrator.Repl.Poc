@@ -13,8 +13,11 @@
           <div class="section-header">
             <h3>C# Migration Code</h3>
             <div>
-              <button class="btn btn-outline-secondary btn-sm me-2" @click="listMigrations" :disabled="!blazorReady || listing">
-                📋 List Migrations
+              <button class="btn btn-outline-info btn-sm me-2" @click="listMigrations" :disabled="!blazorReady || executing || listing">
+                📋 List
+              </button>
+              <button class="btn btn-outline-warning btn-sm me-2" @click="previewMigrations" :disabled="!blazorReady || executing || previewing">
+                👁️ Preview
               </button>
               <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
                 ▶️ Run Migration
@@ -28,13 +31,6 @@
             <button class="btn btn-secondary btn-sm me-2" @click="loadExample('foreignKeys')">With Foreign Keys</button>
             <button class="btn btn-secondary btn-sm" @click="loadExample('indexes')">With Indexes</button>
           </div>
-
-          <!-- Migration List Component -->
-          <MigrationList 
-            :migrations="migrationList" 
-            :error="migrationListError"
-            :editorInstance="editor"
-          />
         </div>
       </div>
       
@@ -58,17 +54,15 @@
 import { ref, onMounted, useTemplateRef } from 'vue'
 import monaco from './monaco-config'
 import DatabaseViewer from './components/DatabaseViewer.vue'
-import MigrationList from './components/MigrationList.vue'
 
 const editorContainer = ref(null)
 const output = ref('Ready to run migrations. Click \'Run Migration\' to execute your code.')
 const blazorReady = ref(false)
 const executing = ref(false)
 const listing = ref(false)
+const previewing = ref(false)
 const dbSchema = ref(null)
 const dbViewer = useTemplateRef("dbViewer")
-const migrationList = ref(null)
-const migrationListError = ref(null)
 let editor = null
 
 const defaultCode = `using FluentMigrator;
@@ -199,25 +193,33 @@ const listMigrations = async () => {
   if (!window.migrationInterop || listing.value) return
   
   listing.value = true
-  migrationListError.value = null
+  output.value = 'Listing migrations...'
   
   try {
     const code = editor.getValue()
-    const resultJson = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
-    const result = JSON.parse(resultJson)
-    
-    if (result.success) {
-      migrationList.value = result.migrations
-      migrationListError.value = null
-    } else {
-      migrationList.value = null
-      migrationListError.value = result.error
-    }
+    const result = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
+    output.value = result
   } catch (error) {
-    migrationList.value = null
-    migrationListError.value = error.message
+    output.value = `Error: ${error.message}`
   } finally {
     listing.value = false
+  }
+}
+
+const previewMigrations = async () => {
+  if (!window.migrationInterop || previewing.value) return
+  
+  previewing.value = true
+  output.value = 'Previewing migrations...'
+  
+  try {
+    const code = editor.getValue()
+    const result = await window.migrationInterop.invokeMethodAsync('PreviewMigrationsAsync', code)
+    output.value = result
+  } catch (error) {
+    output.value = `Error: ${error.message}`
+  } finally {
+    previewing.value = false
   }
 }
 

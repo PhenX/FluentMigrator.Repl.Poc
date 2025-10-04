@@ -33,12 +33,12 @@ public class MigrationInterop
     [JSInvokable]
     public async Task<string> ListMigrationsAsync(string code)
     {
-        return await _executor.ListMigrationsAsync(code);
+        return await _executor.ListMigrationsNativeAsync(code);
     }
 
     [JSInvokable]
-    public async Task<string> PreviewMigrationAsync(string code, long version)
+    public async Task<string> PreviewMigrationsAsync(string code)
     {
-        return await _executor.PreviewMigrationAsync(code, version);
+        return await _executor.PreviewMigrationsNativeAsync(code);
     }
 }

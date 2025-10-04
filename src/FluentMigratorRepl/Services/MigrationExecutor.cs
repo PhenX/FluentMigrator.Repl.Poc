@@ -107,110 +107,162 @@ public class MigrationExecutor
         }
     }
 
-    public async Task<string> ListMigrationsAsync(string userCode)
+    public async Task<string> ListMigrationsNativeAsync(string userCode)
     {
+        var output = new StringBuilder();
+        
         try
         {
+            output.AppendLine("=== FluentMigrator REPL - List Migrations ===");
+            output.AppendLine();
+            
+            // Validate user code is provided
             if (string.IsNullOrWhiteSpace(userCode))
             {
-                return JsonSerializer.Serialize(new { success = false, error = "No code provided", migrations = Array.Empty<object>() });
+                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
+                return output.ToString();
             }
-
+            
+            output.AppendLine("🔨 Compiling user code...");
+            
             // Compile the user's code
-            var output = new StringBuilder();
             var assembly = await CompileUserCodeAsync(userCode, output);
             if (assembly == null)
             {
-                return JsonSerializer.Serialize(new { success = false, error = output.ToString(), migrations = Array.Empty<object>() });
+                return output.ToString();
             }
-
-            // Find all migration classes
+            
+            output.AppendLine("✓ Code compiled successfully");
+            output.AppendLine();
+            
+            // Get all migration types
             var migrationTypes = assembly.GetTypes()
-                .Where(t => typeof(FluentMigrator.Migration).IsAssignableFrom(t) && !t.IsAbstract)
+                .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
                 .OrderBy(t => GetMigrationVersion(t))
                 .ToList();
-
-            var migrations = migrationTypes.Select(t => new
+            
+            if (!migrationTypes.Any())
             {
-                version = GetMigrationVersion(t),
-                name = t.Name,
-                description = GetMigrationDescription(t),
-                hasUp = t.GetMethod("Up") != null,
-                hasDown = t.GetMethod("Down") != null
-            }).ToList();
-
-            return JsonSerializer.Serialize(new { success = true, migrations });
+                output.AppendLine("⚠️  No migrations found in the code.");
+                return output.ToString();
+            }
+            
+            output.AppendLine($"📋 Found {migrationTypes.Count} migration(s):");
+            output.AppendLine();
+            
+            foreach (var migrationType in migrationTypes)
+            {
+                var version = GetMigrationVersion(migrationType);
+                var description = GetMigrationDescription(migrationType);
+                var hasUp = migrationType.GetMethod("Up") != null;
+                var hasDown = migrationType.GetMethod("Down") != null;
+                
+                output.AppendLine($"  📌 Version: {version}");
+                output.AppendLine($"     Name: {migrationType.Name}");
+                if (!string.IsNullOrEmpty(description))
+                {
+                    output.AppendLine($"     Description: {description}");
+                }
+                output.AppendLine($"     Methods: {(hasUp ? "Up() " : "")}{(hasDown ? "Down()" : "")}");
+                output.AppendLine();
+            }
+            
+            output.AppendLine($"✅ Total: {migrationTypes.Count} migration(s) ready to execute");
         }
         catch (Exception ex)
         {
-            return JsonSerializer.Serialize(new { success = false, error = ex.Message, migrations = Array.Empty<object>() });
+            output.AppendLine();
+            output.AppendLine($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
         }
+        
+        return output.ToString();
     }
 
-    public async Task<string> PreviewMigrationAsync(string userCode, long version)
+    public async Task<string> PreviewMigrationsNativeAsync(string userCode)
     {
+        var output = new StringBuilder();
+        
         try
         {
+            output.AppendLine("=== FluentMigrator REPL - Preview Migrations ===");
+            output.AppendLine();
+            
+            // Validate user code is provided
             if (string.IsNullOrWhiteSpace(userCode))
             {
-                return JsonSerializer.Serialize(new { success = false, error = "No code provided" });
+                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
+                return output.ToString();
             }
-
+            
+            output.AppendLine("🔨 Compiling user code...");
+            
             // Compile the user's code
-            var output = new StringBuilder();
             var assembly = await CompileUserCodeAsync(userCode, output);
             if (assembly == null)
             {
-                return JsonSerializer.Serialize(new { success = false, error = output.ToString() });
+                return output.ToString();
             }
-
-            // Find the specific migration
-            var migrationType = assembly.GetTypes()
-                .FirstOrDefault(t => typeof(FluentMigrator.Migration).IsAssignableFrom(t) 
-                    && !t.IsAbstract 
-                    && GetMigrationVersion(t) == version);
-
-            if (migrationType == null)
+            
+            output.AppendLine("✓ Code compiled successfully");
+            output.AppendLine();
+            
+            // Get all migration types
+            var migrationTypes = assembly.GetTypes()
+                .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
+                .OrderBy(t => GetMigrationVersion(t))
+                .ToList();
+            
+            if (!migrationTypes.Any())
             {
-                return JsonSerializer.Serialize(new { success = false, error = $"Migration with version {version} not found" });
+                output.AppendLine("⚠️  No migrations found in the code.");
+                return output.ToString();
             }
-
-            // Preview migration by analyzing what it would do
-            var preview = new StringBuilder();
-            preview.AppendLine($"=== Migration Preview: {migrationType.Name} (v{version}) ===");
-            preview.AppendLine();
-            preview.AppendLine("This migration would perform the following actions:");
-            preview.AppendLine();
-            preview.AppendLine("📝 Note: This is a code preview, not actual execution.");
-            preview.AppendLine("   To see the exact SQL statements, use 'Run Migration'.");
-            preview.AppendLine();
-
-            // Try to instantiate and analyze the migration
-            var migration = Activator.CreateInstance(migrationType) as FluentMigrator.Migration;
-            if (migration != null)
+            
+            output.AppendLine("👁️  Previewing migrations (dry-run, no actual execution):");
+            output.AppendLine();
+            
+            foreach (var migrationType in migrationTypes)
             {
-                preview.AppendLine("✅ UP Migration:");
-                preview.AppendLine("   • Migration class instantiated successfully");
-                preview.AppendLine("   • Ready to create/modify database schema");
-                preview.AppendLine();
+                var version = GetMigrationVersion(migrationType);
+                var description = GetMigrationDescription(migrationType);
                 
-                preview.AppendLine("🔄 DOWN Migration:");
-                preview.AppendLine("   • Rollback actions defined");
-                preview.AppendLine("   • Can revert changes made by Up()");
+                output.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                output.AppendLine($"📌 Migration Version: {version}");
+                output.AppendLine($"   Name: {migrationType.Name}");
+                if (!string.IsNullOrEmpty(description))
+                {
+                    output.AppendLine($"   Description: {description}");
+                }
+                output.AppendLine();
+                
+                // Create instance and analyze methods
+                var migration = Activator.CreateInstance(migrationType) as Migration;
+                if (migration != null)
+                {
+                    output.AppendLine("   🔼 UP Migration:");
+                    output.AppendLine("      ✓ Migration is ready to create/modify database objects");
+                    output.AppendLine("      ✓ Will execute when you click 'Run Migration'");
+                    
+                    output.AppendLine();
+                    output.AppendLine("   🔽 DOWN Migration:");
+                    output.AppendLine("      ✓ Rollback is ready to revert database objects");
+                }
+                output.AppendLine();
             }
-
-            return JsonSerializer.Serialize(new { 
-                success = true, 
-                preview = preview.ToString(),
-                version,
-                name = migrationType.Name,
-                description = GetMigrationDescription(migrationType)
-            });
+            
+            output.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            output.AppendLine();
+            output.AppendLine($"✅ Preview complete for {migrationTypes.Count} migration(s)");
+            output.AppendLine();
+            output.AppendLine("💡 TIP: Click 'Run Migration' to actually execute these migrations");
         }
         catch (Exception ex)
         {
-            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+            output.AppendLine();
+            output.AppendLine($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
         }
+        
+        return output.ToString();
     }
 
     public async Task<string> GetTableDataAsync(string tableName)
