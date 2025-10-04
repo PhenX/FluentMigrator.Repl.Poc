@@ -1,7 +1,5 @@
-using System;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.IO;
 using System.Reflection.PortableExecutable;
 
 namespace FluentMigratorRepl.Webcil

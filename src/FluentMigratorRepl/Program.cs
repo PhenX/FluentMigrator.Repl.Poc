@@ -16,6 +16,10 @@ builder.Services.AddSingleton<IBlazorHttpClientFactory, BlazorHttpClientFactory>
 builder.Services.AddScoped<MigrationExecutor>();
 builder.Services.AddScoped<MigrationInterop>();
 
+// Logging
+builder.Services.AddSingleton<ILogger>(OutputLogger.Instance);
+builder.Logging.SetMinimumLevel(LogLevel.Debug);
+
 var host = builder.Build();
 
 // Export the migration interop to JavaScript

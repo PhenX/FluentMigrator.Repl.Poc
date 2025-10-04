@@ -13,13 +13,13 @@
           <div class="section-header">
             <h3>C# Migration Code</h3>
             <div>
-              <button class="btn btn-outline-info btn-sm me-2" @click="listMigrations" :disabled="!blazorReady || executing || listing">
+              <button class="btn btn-outline-info btn-sm me-2" @click="runMigration(1)" :disabled="!blazorReady || executing || listing">
                 📋 List
               </button>
-              <button class="btn btn-outline-warning btn-sm me-2" @click="previewMigrations" :disabled="!blazorReady || executing || previewing">
+              <button class="btn btn-outline-warning btn-sm me-2" @click="runMigration(2)" :disabled="!blazorReady || executing || previewing">
                 👁️ Preview
               </button>
-              <button class="btn btn-primary" @click="runMigration" :disabled="!blazorReady || executing">
+              <button class="btn btn-primary" @click="runMigration(0)" :disabled="!blazorReady || executing">
                 ▶️ Run Migration
               </button>
             </div>
@@ -157,13 +157,13 @@ const initEditor = () => {
       theme: 'vs-dark',
       automaticLayout: true,
       minimap: { enabled: false },
-      fontSize: 14,
+      fontSize: 13,
       scrollBeyondLastLine: false,
     })
   }
 }
 
-const runMigration = async () => {
+const runMigration = async (runType) => {
   if (!window.migrationInterop || executing.value) return
   
   executing.value = true
@@ -171,7 +171,7 @@ const runMigration = async () => {
   
   try {
     const code = editor.getValue()
-    const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code)
+    const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code, runType)
     output.value = result
     
     // Load the database schema
@@ -186,40 +186,6 @@ const runMigration = async () => {
     output.value = `Error: ${error.message}`
   } finally {
     executing.value = false
-  }
-}
-
-const listMigrations = async () => {
-  if (!window.migrationInterop || listing.value) return
-  
-  listing.value = true
-  output.value = 'Listing migrations...'
-  
-  try {
-    const code = editor.getValue()
-    const result = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
-    output.value = result
-  } catch (error) {
-    output.value = `Error: ${error.message}`
-  } finally {
-    listing.value = false
-  }
-}
-
-const previewMigrations = async () => {
-  if (!window.migrationInterop || previewing.value) return
-  
-  previewing.value = true
-  output.value = 'Previewing migrations...'
-  
-  try {
-    const code = editor.getValue()
-    const result = await window.migrationInterop.invokeMethodAsync('PreviewMigrationsAsync', code)
-    output.value = result
-  } catch (error) {
-    output.value = `Error: ${error.message}`
-  } finally {
-    previewing.value = false
   }
 }
 

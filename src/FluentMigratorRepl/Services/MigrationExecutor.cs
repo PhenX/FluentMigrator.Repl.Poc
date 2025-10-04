@@ -1,10 +1,8 @@
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using FluentMigrator.Runner;
-using FluentMigrator;
+using FluentMigratorRepl.Enums;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -16,67 +14,58 @@ public class MigrationExecutor
 {
     private readonly IResourceResolver _resourceResolver;
     private readonly IBlazorHttpClientFactory _httpClientFactory;
+    private readonly ILogger _logger;
     private string _lastConnectionString = "";
 
-    public MigrationExecutor(IResourceResolver resourceResolver, IBlazorHttpClientFactory httpClientFactory)
+    public MigrationExecutor(IResourceResolver resourceResolver, IBlazorHttpClientFactory httpClientFactory, ILogger logger)
     {
         _resourceResolver = resourceResolver;
         _httpClientFactory = httpClientFactory;
+        _logger = logger;
     }
 
-    public async Task<string> ExecuteMigrationCodeAsync(string userCode)
+    public async Task ExecuteMigrationCodeAsync(string userCode, MigrationRunType runType = MigrationRunType.Up)
     {
-        var output = new StringBuilder();
-        
         try
         {
-            output.AppendLine("=== FluentMigrator REPL - Executing Migration ===");
-            output.AppendLine();
+            _logger.LogInformation("=== FluentMigrator REPL - Executing Migration ===");
             
             // Validate user code is provided
             if (string.IsNullOrWhiteSpace(userCode))
             {
-                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
-                return output.ToString();
+                _logger.LogWarning("⚠️  No code provided. Please enter migration code in the editor.");
+                return;
             }
             
-            output.AppendLine("🔨 Compiling user code...");
+            _logger.LogInformation("🔨 Compiling user code...");
             
             // Compile the user's code
-            var assembly = await CompileUserCodeAsync(userCode, output);
+            var assembly = await CompileUserCodeAsync(userCode);
             if (assembly == null)
             {
-                return output.ToString();
+                return;
             }
             
-            output.AppendLine("✓ Code compiled successfully");
-            output.AppendLine();
+            _logger.LogInformation("✓ Code compiled successfully");
             
             // Create an in-memory SQLite database
             _lastConnectionString = "Data Source=sample.db;";
-            output.AppendLine($"🔗 Connection: {_lastConnectionString}");
-            output.AppendLine();
+            _logger.LogInformation($"🔗 Connection: {_lastConnectionString}");
             
             // Execute migrations from the compiled assembly
-            output.AppendLine("⚡ Executing migrations...");
-            await ExecuteMigrationsAsync(_lastConnectionString, assembly, output);
+            await ExecuteMigrationsAsync(_lastConnectionString, assembly, runType);
             
-            output.AppendLine();
-            output.AppendLine("✅ Migration executed successfully!");
+            _logger.LogInformation("✅ Migration executed successfully!");
         }
         catch (Exception ex)
         {
-            output.AppendLine();
-            output.AppendLine($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogInformation($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
             if (ex.InnerException != null)
             {
-                output.AppendLine($"   Inner: {ex.InnerException.Message}");
+                _logger.LogInformation($"   Inner: {ex.InnerException.Message}");
             }
-            output.AppendLine();
-            output.AppendLine($"Stack: {ex.StackTrace}");
+            _logger.LogInformation($"Stack: {ex.StackTrace}");
         }
-        
-        return output.ToString();
     }
 
     public async Task<string> GetDatabaseSchemaAsync()
@@ -105,164 +94,6 @@ public class MigrationExecutor
             Console.WriteLine($"Error getting schema: {ex.Message}");
             return JsonSerializer.Serialize(new { tables = Array.Empty<object>(), indexes = Array.Empty<object>(), views = Array.Empty<object>() });
         }
-    }
-
-    public async Task<string> ListMigrationsNativeAsync(string userCode)
-    {
-        var output = new StringBuilder();
-        
-        try
-        {
-            output.AppendLine("=== FluentMigrator REPL - List Migrations ===");
-            output.AppendLine();
-            
-            // Validate user code is provided
-            if (string.IsNullOrWhiteSpace(userCode))
-            {
-                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
-                return output.ToString();
-            }
-            
-            output.AppendLine("🔨 Compiling user code...");
-            
-            // Compile the user's code
-            var assembly = await CompileUserCodeAsync(userCode, output);
-            if (assembly == null)
-            {
-                return output.ToString();
-            }
-            
-            output.AppendLine("✓ Code compiled successfully");
-            output.AppendLine();
-            
-            // Get all migration types
-            var migrationTypes = assembly.GetTypes()
-                .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
-                .OrderBy(t => GetMigrationVersion(t))
-                .ToList();
-            
-            if (!migrationTypes.Any())
-            {
-                output.AppendLine("⚠️  No migrations found in the code.");
-                return output.ToString();
-            }
-            
-            output.AppendLine($"📋 Found {migrationTypes.Count} migration(s):");
-            output.AppendLine();
-            
-            foreach (var migrationType in migrationTypes)
-            {
-                var version = GetMigrationVersion(migrationType);
-                var description = GetMigrationDescription(migrationType);
-                var hasUp = migrationType.GetMethod("Up") != null;
-                var hasDown = migrationType.GetMethod("Down") != null;
-                
-                output.AppendLine($"  📌 Version: {version}");
-                output.AppendLine($"     Name: {migrationType.Name}");
-                if (!string.IsNullOrEmpty(description))
-                {
-                    output.AppendLine($"     Description: {description}");
-                }
-                output.AppendLine($"     Methods: {(hasUp ? "Up() " : "")}{(hasDown ? "Down()" : "")}");
-                output.AppendLine();
-            }
-            
-            output.AppendLine($"✅ Total: {migrationTypes.Count} migration(s) ready to execute");
-        }
-        catch (Exception ex)
-        {
-            output.AppendLine();
-            output.AppendLine($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
-        }
-        
-        return output.ToString();
-    }
-
-    public async Task<string> PreviewMigrationsNativeAsync(string userCode)
-    {
-        var output = new StringBuilder();
-        
-        try
-        {
-            output.AppendLine("=== FluentMigrator REPL - Preview Migrations ===");
-            output.AppendLine();
-            
-            // Validate user code is provided
-            if (string.IsNullOrWhiteSpace(userCode))
-            {
-                output.AppendLine("⚠️  No code provided. Please enter migration code in the editor.");
-                return output.ToString();
-            }
-            
-            output.AppendLine("🔨 Compiling user code...");
-            
-            // Compile the user's code
-            var assembly = await CompileUserCodeAsync(userCode, output);
-            if (assembly == null)
-            {
-                return output.ToString();
-            }
-            
-            output.AppendLine("✓ Code compiled successfully");
-            output.AppendLine();
-            
-            // Get all migration types
-            var migrationTypes = assembly.GetTypes()
-                .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
-                .OrderBy(t => GetMigrationVersion(t))
-                .ToList();
-            
-            if (!migrationTypes.Any())
-            {
-                output.AppendLine("⚠️  No migrations found in the code.");
-                return output.ToString();
-            }
-            
-            output.AppendLine("👁️  Previewing migrations (dry-run, no actual execution):");
-            output.AppendLine();
-            
-            foreach (var migrationType in migrationTypes)
-            {
-                var version = GetMigrationVersion(migrationType);
-                var description = GetMigrationDescription(migrationType);
-                
-                output.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                output.AppendLine($"📌 Migration Version: {version}");
-                output.AppendLine($"   Name: {migrationType.Name}");
-                if (!string.IsNullOrEmpty(description))
-                {
-                    output.AppendLine($"   Description: {description}");
-                }
-                output.AppendLine();
-                
-                // Create instance and analyze methods
-                var migration = Activator.CreateInstance(migrationType) as Migration;
-                if (migration != null)
-                {
-                    output.AppendLine("   🔼 UP Migration:");
-                    output.AppendLine("      ✓ Migration is ready to create/modify database objects");
-                    output.AppendLine("      ✓ Will execute when you click 'Run Migration'");
-                    
-                    output.AppendLine();
-                    output.AppendLine("   🔽 DOWN Migration:");
-                    output.AppendLine("      ✓ Rollback is ready to revert database objects");
-                }
-                output.AppendLine();
-            }
-            
-            output.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            output.AppendLine();
-            output.AppendLine($"✅ Preview complete for {migrationTypes.Count} migration(s)");
-            output.AppendLine();
-            output.AppendLine("💡 TIP: Click 'Run Migration' to actually execute these migrations");
-        }
-        catch (Exception ex)
-        {
-            output.AppendLine();
-            output.AppendLine($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
-        }
-        
-        return output.ToString();
     }
 
     public async Task<string> GetTableDataAsync(string tableName)
@@ -306,20 +137,6 @@ public class MigrationExecutor
             Console.WriteLine($"Error getting table data: {ex.Message}");
             return JsonSerializer.Serialize(new { columns = Array.Empty<string>(), rows = Array.Empty<object>() });
         }
-    }
-
-    private long GetMigrationVersion(Type migrationType)
-    {
-        var migrationAttr = migrationType.GetCustomAttributes(typeof(MigrationAttribute), false)
-            .FirstOrDefault() as MigrationAttribute;
-        return migrationAttr?.Version ?? 0;
-    }
-
-    private string GetMigrationDescription(Type migrationType)
-    {
-        var migrationAttr = migrationType.GetCustomAttributes(typeof(MigrationAttribute), false)
-            .FirstOrDefault() as MigrationAttribute;
-        return migrationAttr?.Description ?? string.Empty;
     }
 
     private async Task<List<object>> GetTablesSchemaAsync(SqliteConnection connection)
@@ -457,7 +274,7 @@ public class MigrationExecutor
         return views;
     }
     
-    private async Task<Assembly?> CompileUserCodeAsync(string userCode, StringBuilder output)
+    private async Task<Assembly?> CompileUserCodeAsync(string userCode)
     {
         try
         {
@@ -504,8 +321,7 @@ public class MigrationExecutor
             
             if (!result.Success)
             {
-                output.AppendLine("❌ Compilation failed:");
-                output.AppendLine();
+                _logger.LogError("❌ Compilation failed:");
                 
                 var failures = result.Diagnostics.Where(diagnostic =>
                     diagnostic.IsWarningAsError ||
@@ -513,9 +329,9 @@ public class MigrationExecutor
                 
                 foreach (var diagnostic in failures)
                 {
-                    output.AppendLine($"  {diagnostic.Id}: {diagnostic.GetMessage()}");
+                    _logger.LogInformation($"  {diagnostic.Id}: {diagnostic.GetMessage()}");
                     var lineSpan = diagnostic.Location.GetLineSpan();
-                    output.AppendLine($"    at line {lineSpan.StartLinePosition.Line + 1}");
+                    _logger.LogInformation($"    at line {lineSpan.StartLinePosition.Line + 1}");
                 }
                 
                 return null;
@@ -530,19 +346,23 @@ public class MigrationExecutor
         }
         catch (Exception ex)
         {
-            output.AppendLine($"❌ Compilation error: {ex.Message}");
+            _logger.LogInformation($"❌ Compilation error: {ex.Message}");
             return null;
         }
     }
     
-    private async Task ExecuteMigrationsAsync(string connectionString, Assembly migrationAssembly, StringBuilder output)
+    private async Task ExecuteMigrationsAsync(string connectionString, Assembly migrationAssembly, MigrationRunType runType)
     {
         // Set up FluentMigrator services WITHOUT console logging (causes WASM issues)
         var serviceProvider = new ServiceCollection()
+            .AddLogging(lb => lb
+                .SetMinimumLevel(LogLevel.Information)
+                .AddProvider(OutputLoggerProvider.Instance))
             .AddFluentMigratorCore()
             .ConfigureRunner(rb => rb
                 .AddSQLite()
                 .WithGlobalConnectionString(connectionString)
+                .AsGlobalPreview(MigrationRunType.Preview == runType)
                 .ScanIn(migrationAssembly).For.Migrations())
             .BuildServiceProvider(false);
         
@@ -550,12 +370,26 @@ public class MigrationExecutor
         using var scope = serviceProvider.CreateScope();
         var runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
         
-        output.AppendLine("Running MigrateUp()...");
-        runner.MigrateUp();
-        
-        output.AppendLine("✓ Migrations applied successfully");
-        
-        await Task.CompletedTask;
+        switch (runType)
+        {
+            case MigrationRunType.List:
+                _logger.LogInformation("Listing migrations...");
+                runner.ListMigrations();
+                return;
+            
+            case MigrationRunType.Preview:
+                _logger.LogInformation("Previewing migrations...");
+                runner.MigrateUp();
+                return;
+            
+            case MigrationRunType.Up:
+                _logger.LogInformation("Running MigrateUp()...");
+                runner.MigrateUp();
+                return;
+            default:
+                await Task.CompletedTask;
+                break;
+        }
     }
     
     private async Task<string> ResolveResourceStreamUri(string resource)
@@ -572,51 +406,5 @@ public class MigrationExecutor
 
         using var peStream = new MemoryStream(peBytes);
         return MetadataReference.CreateFromStream(peStream);
-    }
-}
-
-// Example migrations in the assembly
-[Migration(202501010001)]
-public class CreateUsersTable : Migration
-{
-    public override void Up()
-    {
-        Create.Table("Users")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("Username").AsString(50).NotNullable()
-            .WithColumn("Email").AsString(100).NotNullable()
-            .WithColumn("CreatedAt").AsDateTime().NotNullable()
-                .WithDefault(SystemMethods.CurrentDateTime);
-    }
-
-    public override void Down()
-    {
-        Delete.Table("Users");
-    }
-}
-
-[Migration(202501010002)]
-public class CreatePostsTable : Migration
-{
-    public override void Up()
-    {
-        Create.Table("Posts")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("UserId").AsInt32().NotNullable()
-                .ForeignKey("Users", "Id")
-            .WithColumn("Title").AsString(200).NotNullable()
-            .WithColumn("Content").AsString().Nullable()
-            .WithColumn("CreatedAt").AsDateTime().NotNullable()
-                .WithDefault(SystemMethods.CurrentDateTime);
-            
-        Create.Index("IX_Posts_UserId")
-            .OnTable("Posts")
-            .OnColumn("UserId");
-    }
-
-    public override void Down()
-    {
-        Delete.Index("IX_Posts_UserId");
-        Delete.Table("Posts");
     }
 }

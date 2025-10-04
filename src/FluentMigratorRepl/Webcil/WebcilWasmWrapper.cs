@@ -29,9 +29,6 @@
 //    local.get $n
 //    memory.init 1))
 
-using System;
-using System.IO;
-
 namespace FluentMigratorRepl.Webcil
 {
     public class WebcilWasmWrapper

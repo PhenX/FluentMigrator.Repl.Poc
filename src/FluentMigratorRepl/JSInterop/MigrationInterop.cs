@@ -1,3 +1,4 @@
+using FluentMigratorRepl.Enums;
 using Microsoft.JSInterop;
 using FluentMigratorRepl.Services;
 
@@ -13,9 +14,11 @@ public class MigrationInterop
     }
 
     [JSInvokable]
-    public async Task<string> ExecuteMigrationAsync(string code)
+    public async Task<string> ExecuteMigrationAsync(string code, MigrationRunType runType = MigrationRunType.Up)
     {
-        return await _executor.ExecuteMigrationCodeAsync(code);
+        await _executor.ExecuteMigrationCodeAsync(code, runType);
+        
+        return OutputLoggerProvider.Instance.Logger.GetOutput();
     }
 
     [JSInvokable]
@@ -28,17 +31,5 @@ public class MigrationInterop
     public async Task<string> GetTableDataAsync(string tableName)
     {
         return await _executor.GetTableDataAsync(tableName);
-    }
-
-    [JSInvokable]
-    public async Task<string> ListMigrationsAsync(string code)
-    {
-        return await _executor.ListMigrationsNativeAsync(code);
-    }
-
-    [JSInvokable]
-    public async Task<string> PreviewMigrationsAsync(string code)
-    {
-        return await _executor.PreviewMigrationsNativeAsync(code);
     }
 }

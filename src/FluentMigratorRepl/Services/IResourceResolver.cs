@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 namespace FluentMigratorRepl.Services;
 
 public interface IResourceResolver
