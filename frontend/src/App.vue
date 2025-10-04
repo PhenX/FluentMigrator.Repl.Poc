@@ -54,224 +54,198 @@
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from 'vue'
+<script setup>
+import { ref, onMounted, useTemplateRef } from 'vue'
 import monaco from './monaco-config'
 import DatabaseViewer from './components/DatabaseViewer.vue'
 import MigrationList from './components/MigrationList.vue'
 
-export default {
-  name: 'App',
-  components: {
-    DatabaseViewer,
-    MigrationList
-  },
-  setup() {
-    const editorContainer = ref(null)
-    const output = ref('Ready to run migrations. Click \'Run Migration\' to execute your code.')
-    const blazorReady = ref(false)
-    const executing = ref(false)
-    const listing = ref(false)
-    const dbSchema = ref(null)
-    const dbViewer = ref(null)
-    const migrationList = ref(null)
-    const migrationListError = ref(null)
-    let editor = null
+const editorContainer = ref(null)
+const output = ref('Ready to run migrations. Click \'Run Migration\' to execute your code.')
+const blazorReady = ref(false)
+const executing = ref(false)
+const listing = ref(false)
+const dbSchema = ref(null)
+const dbViewer = useTemplateRef("dbViewer")
+const migrationList = ref(null)
+const migrationListError = ref(null)
+let editor = null
 
-    const defaultCode = `using FluentMigrator;
+const defaultCode = `using FluentMigrator;
 
 [Migration(202501010001)]
 public class CreateUsersTable : Migration
 {
-    public override void Up()
-    {
-        Create.Table("Users")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("Username").AsString(50).NotNullable()
-            .WithColumn("Email").AsString(100).NotNullable()
-            .WithColumn("CreatedAt").AsDateTime().NotNullable()
-                .WithDefault(SystemMethods.CurrentDateTime);
-    }
+public override void Up()
+{
+    Create.Table("Users")
+        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
+        .WithColumn("Username").AsString(50).NotNullable()
+        .WithColumn("Email").AsString(100).NotNullable()
+        .WithColumn("CreatedAt").AsDateTime().NotNullable()
+            .WithDefault(SystemMethods.CurrentDateTime);
+}
 
-    public override void Down()
-    {
-        Delete.Table("Users");
-    }
+public override void Down()
+{
+    Delete.Table("Users");
+}
 }`
 
-    const examples = {
-      simple: defaultCode,
-      foreignKeys: `using FluentMigrator;
+const examples = {
+  simple: defaultCode,
+  foreignKeys: `using FluentMigrator;
 
 [Migration(202501010002)]
 public class CreatePostsTable : Migration
 {
-    public override void Up()
-    {
-        Create.Table("Posts")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("UserId").AsInt32().NotNullable()
-                .ForeignKey("Users", "Id")
-            .WithColumn("Title").AsString(200).NotNullable()
-            .WithColumn("Content").AsString().Nullable()
-            .WithColumn("CreatedAt").AsDateTime().NotNullable()
-                .WithDefault(SystemMethods.CurrentDateTime);
-    }
+public override void Up()
+{
+    Create.Table("Posts")
+        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
+        .WithColumn("UserId").AsInt32().NotNullable()
+            .ForeignKey("Users", "Id")
+        .WithColumn("Title").AsString(200).NotNullable()
+        .WithColumn("Content").AsString().Nullable()
+        .WithColumn("CreatedAt").AsDateTime().NotNullable()
+            .WithDefault(SystemMethods.CurrentDateTime);
+}
 
-    public override void Down()
-    {
-        Delete.Table("Posts");
-    }
+public override void Down()
+{
+    Delete.Table("Posts");
+}
 }`,
-      indexes: `using FluentMigrator;
+  indexes: `using FluentMigrator;
 
 [Migration(202501010003)]
 public class CreateOrdersWithIndexes : Migration
 {
-    public override void Up()
-    {
-        Create.Table("Orders")
-            .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-            .WithColumn("CustomerId").AsInt32().NotNullable()
-            .WithColumn("OrderNumber").AsString(50).NotNullable()
-            .WithColumn("OrderDate").AsDateTime().NotNullable()
-            .WithColumn("Status").AsString(20).NotNullable();
-            
-        Create.Index("IX_Orders_CustomerId")
-            .OnTable("Orders")
-            .OnColumn("CustomerId");
-            
-        Create.Index("IX_Orders_OrderDate")
-            .OnTable("Orders")
-            .OnColumn("OrderDate")
-            .Descending();
-            
-        Create.Index("IX_Orders_OrderNumber")
-            .OnTable("Orders")
-            .OnColumn("OrderNumber")
-            .Unique();
-    }
+public override void Up()
+{
+    Create.Table("Orders")
+        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
+        .WithColumn("CustomerId").AsInt32().NotNullable()
+        .WithColumn("OrderNumber").AsString(50).NotNullable()
+        .WithColumn("OrderDate").AsDateTime().NotNullable()
+        .WithColumn("Status").AsString(20).NotNullable();
+        
+    Create.Index("IX_Orders_CustomerId")
+        .OnTable("Orders")
+        .OnColumn("CustomerId");
+        
+    Create.Index("IX_Orders_OrderDate")
+        .OnTable("Orders")
+        .OnColumn("OrderDate")
+        .Descending();
+        
+    Create.Index("IX_Orders_OrderNumber")
+        .OnTable("Orders")
+        .OnColumn("OrderNumber")
+        .Unique();
+}
 
-    public override void Down()
-    {
-        Delete.Index("IX_Orders_OrderNumber");
-        Delete.Index("IX_Orders_OrderDate");
-        Delete.Index("IX_Orders_CustomerId");
-        Delete.Table("Orders");
-    }
+public override void Down()
+{
+    Delete.Index("IX_Orders_OrderNumber");
+    Delete.Index("IX_Orders_OrderDate");
+    Delete.Index("IX_Orders_CustomerId");
+    Delete.Table("Orders");
+}
 }`
-    }
+}
 
-    const initEditor = () => {
-      if (editorContainer.value) {
-        editor = monaco.editor.create(editorContainer.value, {
-          value: defaultCode,
-          language: 'csharp',
-          theme: 'vs-dark',
-          automaticLayout: true,
-          minimap: { enabled: false },
-          fontSize: 14,
-          scrollBeyondLastLine: false,
-        })
-      }
-    }
-
-    const runMigration = async () => {
-      if (!window.migrationInterop || executing.value) return
-      
-      executing.value = true
-      output.value = 'Executing migration...'
-      
-      try {
-        const code = editor.getValue()
-        const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code)
-        output.value = result
-        
-        // Load the database schema
-        const schemaJson = await window.migrationInterop.invokeMethodAsync('GetDatabaseSchemaAsync')
-        dbSchema.value = JSON.parse(schemaJson)
-        
-        // Refresh table data in the viewer
-        if (dbViewer.value) {
-          dbViewer.value.refreshAllData()
-        }
-      } catch (error) {
-        output.value = `Error: ${error.message}`
-      } finally {
-        executing.value = false
-      }
-    }
-
-    const listMigrations = async () => {
-      if (!window.migrationInterop || listing.value) return
-      
-      listing.value = true
-      migrationListError.value = null
-      
-      try {
-        const code = editor.getValue()
-        const resultJson = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
-        const result = JSON.parse(resultJson)
-        
-        if (result.success) {
-          migrationList.value = result.migrations
-          migrationListError.value = null
-        } else {
-          migrationList.value = null
-          migrationListError.value = result.error
-        }
-      } catch (error) {
-        migrationList.value = null
-        migrationListError.value = error.message
-      } finally {
-        listing.value = false
-      }
-    }
-
-    const clearOutput = () => {
-      output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
-      dbSchema.value = null
-    }
-
-    const loadExample = (exampleName) => {
-      if (editor && examples[exampleName]) {
-        editor.setValue(examples[exampleName])
-      }
-    }
-
-    onMounted(() => {
-      initEditor()
-      
-      // Wait for Blazor WASM to be ready
-      window.addEventListener('blazor-ready', () => {
-        blazorReady.value = true
-        output.value = 'Blazor WASM loaded! Ready to execute migrations.'
-      })
-      
-      // Check if already ready
-      if (window.migrationInterop) {
-        blazorReady.value = true
-        output.value = 'Blazor WASM loaded! Ready to execute migrations.'
-      }
+const initEditor = () => {
+  if (editorContainer.value) {
+    editor = monaco.editor.create(editorContainer.value, {
+      value: defaultCode,
+      language: 'csharp',
+      theme: 'vs-dark',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 14,
+      scrollBeyondLastLine: false,
     })
-
-    return {
-      editorContainer,
-      output,
-      blazorReady,
-      executing,
-      listing,
-      dbSchema,
-      dbViewer,
-      migrationList,
-      migrationListError,
-      runMigration,
-      listMigrations,
-      clearOutput,
-      loadExample,
-      editor
-    }
   }
 }
+
+const runMigration = async () => {
+  if (!window.migrationInterop || executing.value) return
+  
+  executing.value = true
+  output.value = 'Executing migration...'
+  
+  try {
+    const code = editor.getValue()
+    const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code)
+    output.value = result
+    
+    // Load the database schema
+    const schemaJson = await window.migrationInterop.invokeMethodAsync('GetDatabaseSchemaAsync')
+    dbSchema.value = JSON.parse(schemaJson)
+    
+    // Refresh table data in the viewer
+    if (dbViewer.value) {
+      dbViewer.value.refreshAllData()
+    }
+  } catch (error) {
+    output.value = `Error: ${error.message}`
+  } finally {
+    executing.value = false
+  }
+}
+
+const listMigrations = async () => {
+  if (!window.migrationInterop || listing.value) return
+  
+  listing.value = true
+  migrationListError.value = null
+  
+  try {
+    const code = editor.getValue()
+    const resultJson = await window.migrationInterop.invokeMethodAsync('ListMigrationsAsync', code)
+    const result = JSON.parse(resultJson)
+    
+    if (result.success) {
+      migrationList.value = result.migrations
+      migrationListError.value = null
+    } else {
+      migrationList.value = null
+      migrationListError.value = result.error
+    }
+  } catch (error) {
+    migrationList.value = null
+    migrationListError.value = error.message
+  } finally {
+    listing.value = false
+  }
+}
+
+const clearOutput = () => {
+  output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
+  dbSchema.value = null
+}
+
+const loadExample = (exampleName) => {
+  if (editor && examples[exampleName]) {
+    editor.setValue(examples[exampleName])
+  }
+}
+
+onMounted(() => {
+  initEditor()
+  
+  // Wait for Blazor WASM to be ready
+  window.addEventListener('blazor-ready', () => {
+    blazorReady.value = true
+    output.value = 'Blazor WASM loaded! Ready to execute migrations.'
+  })
+  
+  // Check if already ready
+  if (window.migrationInterop) {
+    blazorReady.value = true
+    output.value = 'Blazor WASM loaded! Ready to execute migrations.'
+  }
+})
 </script>
 

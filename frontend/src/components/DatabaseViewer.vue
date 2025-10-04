@@ -136,114 +136,98 @@
   </div>
 </template>
 
-<script>
-import { ref } from 'vue'
+<script setup>
+import { ref, defineExpose, defineProps } from 'vue'
 
-export default {
-  name: 'DatabaseViewer',
-  props: {
-    schema: {
-      type: Object,
-      default: null
-    }
-  },
-  setup(props, { emit }) {
-    const expandedTables = ref([])
-    const expandedViews = ref([])
-    const tableData = ref({})
-    const viewData = ref({})
-    const loadingTable = ref(null)
 
-    const toggleTable = (tableName) => {
-      const idx = expandedTables.value.indexOf(tableName)
-      if (idx === -1) {
-        expandedTables.value.push(tableName)
-        // Auto-load data when expanding
-        loadTableData(tableName)
-      } else {
-        expandedTables.value.splice(idx, 1)
-      }
-    }
+const props = defineProps({
+  schema: {
+    type: Object,
+    required: false,
+    default: null
+  }
+})
 
-    const toggleView = (viewName) => {
-      const idx = expandedViews.value.indexOf(viewName)
-      if (idx === -1) {
-        expandedViews.value.push(viewName)
-      } else {
-        expandedViews.value.splice(idx, 1)
-      }
-    }
+const expandedTables = ref([])
+const expandedViews = ref([])
+const tableData = ref({})
+const viewData = ref({})
+const loadingTable = ref(null)
 
-    const getTableIndexes = (tableName) => {
-      if (!props.schema || !props.schema.indexes) return []
-      return props.schema.indexes.filter(idx => idx.tableName === tableName)
-    }
-
-    const loadTableData = async (tableName) => {
-      if (!window.migrationInterop) return
-      
-      loadingTable.value = tableName
-      try {
-        const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', tableName)
-        tableData.value[tableName] = JSON.parse(result)
-      } catch (error) {
-        console.error('Error loading table data:', error)
-        tableData.value[tableName] = { columns: [], rows: [] }
-      } finally {
-        loadingTable.value = null
-      }
-    }
-
-    const loadViewData = async (viewName) => {
-      if (!window.migrationInterop) return
-      
-      loadingTable.value = viewName
-      try {
-        const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', viewName)
-        viewData.value[viewName] = JSON.parse(result)
-      } catch (error) {
-        console.error('Error loading view data:', error)
-        viewData.value[viewName] = { columns: [], rows: [] }
-      } finally {
-        loadingTable.value = null
-      }
-    }
-
-    const formatValue = (value) => {
-      if (value === null || value === undefined) return '(null)'
-      if (typeof value === 'string' && value.length > 100) return value.substring(0, 100) + '...'
-      return value
-    }
-
-    const refreshAllData = () => {
-      // Refresh all expanded tables
-      expandedTables.value.forEach(tableName => {
-        loadTableData(tableName)
-      })
-      // Refresh all expanded views
-      expandedViews.value.forEach(viewName => {
-        loadViewData(viewName)
-      })
-    }
-
-    // Expose refresh method to parent
-    defineExpose({ refreshAllData })
-
-    return {
-      expandedTables,
-      expandedViews,
-      tableData,
-      viewData,
-      loadingTable,
-      toggleTable,
-      toggleView,
-      getTableIndexes,
-      loadTableData,
-      loadViewData,
-      formatValue
-    }
+const toggleTable = (tableName) => {
+  const idx = expandedTables.value.indexOf(tableName)
+  if (idx === -1) {
+    expandedTables.value.push(tableName)
+    // Auto-load data when expanding
+    loadTableData(tableName)
+  } else {
+    expandedTables.value.splice(idx, 1)
   }
 }
+
+const toggleView = (viewName) => {
+  const idx = expandedViews.value.indexOf(viewName)
+  if (idx === -1) {
+    expandedViews.value.push(viewName)
+  } else {
+    expandedViews.value.splice(idx, 1)
+  }
+}
+
+const getTableIndexes = (tableName) => {
+  if (!props.schema || !props.schema.indexes) return []
+  return props.schema.indexes.filter(idx => idx.tableName === tableName)
+}
+
+const loadTableData = async (tableName) => {
+  if (!window.migrationInterop) return
+  
+  loadingTable.value = tableName
+  try {
+    const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', tableName)
+    tableData.value[tableName] = JSON.parse(result)
+  } catch (error) {
+    console.error('Error loading table data:', error)
+    tableData.value[tableName] = { columns: [], rows: [] }
+  } finally {
+    loadingTable.value = null
+  }
+}
+
+const loadViewData = async (viewName) => {
+  if (!window.migrationInterop) return
+  
+  loadingTable.value = viewName
+  try {
+    const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', viewName)
+    viewData.value[viewName] = JSON.parse(result)
+  } catch (error) {
+    console.error('Error loading view data:', error)
+    viewData.value[viewName] = { columns: [], rows: [] }
+  } finally {
+    loadingTable.value = null
+  }
+}
+
+const formatValue = (value) => {
+  if (value === null || value === undefined) return '(null)'
+  if (typeof value === 'string' && value.length > 100) return value.substring(0, 100) + '...'
+  return value
+}
+
+const refreshAllData = () => {
+  // Refresh all expanded tables
+  expandedTables.value.forEach(tableName => {
+    loadTableData(tableName)
+  })
+  // Refresh all expanded views
+  expandedViews.value.forEach(viewName => {
+    loadViewData(viewName)
+  })
+}
+
+// Expose refresh method to parent
+defineExpose({ refreshAllData })
 </script>
 
 <style scoped>
