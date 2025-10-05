@@ -23,6 +23,6 @@ public class CreateUsersTable : Migration
 }`;
 
 export default {
-    title: "Simple Table Creation",
-    code: migrationCode,
+  title: "Simple Table Creation",
+  code: migrationCode,
 };

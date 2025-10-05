@@ -1,5 +1,5 @@
 ﻿import DotNetObject = DotNet.DotNetObject;
 
 interface Window {
-    migrationInterop: DotNetObject
+  migrationInterop: DotNetObject;
 }

@@ -37,6 +37,6 @@ public class CreateOrdersWithIndexes : Migration
 }`;
 
 export default {
-    title: "With indexes",
-    code: migrationCode,
+  title: "With indexes",
+  code: migrationCode,
 };

@@ -22,6 +22,6 @@ public class CreatePostsTable : Migration
 }`;
 
 export default {
-    title: "With foreign keys",
-    code: migrationCode,
+  title: "With foreign keys",
+  code: migrationCode,
 };
