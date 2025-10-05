@@ -15,47 +15,50 @@
         <div class="editor-section">
           <div class="section-header mb-2">
             <h3>C# Migration Code</h3>
+            <button class="btn btn-sm btn-info" @click="copyUrl">
+              📋 Copy URL
+            </button>
             <div>
-              <div class="form-check form-check-inline me-3">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
+              <BForm class="d-flex flex-row align-items-center flex-wrap">
+                <BFormCheckbox
                   id="alwaysReset"
                   v-model="alwaysReset"
                   :disabled="!blazorReady || executing || listing"
-                />
-                <label class="form-check-label" for="alwaysReset">
+                  switch
+                  class="me-2"
+                >
                   Always reset database
-                </label>
-              </div>
-              <button
-                class="btn btn-outline-danger btn-sm me-2"
-                @click="resetDatabase()"
-                :disabled="!blazorReady || executing || listing"
-              >
-                💣 Reset database
-              </button>
-              <button
-                class="btn btn-outline-info btn-sm me-2"
-                @click="runMigration(RunType.List)"
-                :disabled="!blazorReady || executing || listing"
-              >
-                📋 List
-              </button>
-              <button
-                class="btn btn-outline-warning btn-sm me-2"
-                @click="runMigration(RunType.Preview)"
-                :disabled="!blazorReady || executing || previewing"
-              >
-                👁️ Preview
-              </button>
-              <button
-                class="btn btn-primary"
-                @click="runMigration(RunType.Run)"
-                :disabled="!blazorReady || executing"
-              >
-                ▶️ Run Migration
-              </button>
+                </BFormCheckbox>
+
+                <button
+                  class="btn btn-outline-danger btn-sm me-2"
+                  @click="resetDatabase()"
+                  :disabled="!blazorReady || executing || listing"
+                >
+                  💣 Reset database
+                </button>
+                <button
+                  class="btn btn-outline-info btn-sm me-2"
+                  @click="runMigration(RunType.List)"
+                  :disabled="!blazorReady || executing || listing"
+                >
+                  📋 List
+                </button>
+                <button
+                  class="btn btn-outline-warning btn-sm me-2"
+                  @click="runMigration(RunType.Preview)"
+                  :disabled="!blazorReady || executing || previewing"
+                >
+                  👁️ Preview
+                </button>
+                <button
+                  class="btn btn-primary"
+                  @click="runMigration(RunType.Run)"
+                  :disabled="!blazorReady || executing"
+                >
+                  ▶️ Run Migration
+                </button>
+              </BForm>
             </div>
           </div>
           <div ref="editorContainer" class="editor-container"></div>
@@ -121,6 +124,9 @@
 import { ref, onMounted, useTemplateRef } from "vue";
 import monaco from "./monaco-config";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
+import { BBadge, BTab, BTabs, BFormCheckbox, BForm } from "bootstrap-vue-next";
+import samples from "./samples/index.js";
+import { Schema } from "./types";
 
 const editorContainer = ref(null);
 const output = ref(
@@ -142,23 +148,43 @@ enum RunType {
   Preview = 2,
 }
 
-import samples from "./samples/index.js";
-import { BBadge, BTab, BTabs } from "bootstrap-vue-next";
-import { Schema } from "./types";
-
-const initEditor = () => {
-  if (editorContainer.value) {
-    editor = monaco.editor.create(editorContainer.value, {
-      value: samples[0].code,
-      language: "csharp",
-      theme: "vs-light",
-      automaticLayout: true,
-      minimap: { enabled: true },
-      fontSize: 13,
-      scrollBeyondLastLine: false,
-    });
+function initEditor() {
+  if (!editorContainer.value) {
+    return;
   }
-};
+
+  // Get code from URL hash if available
+  const hash = window.location.hash;
+  let decodedCode: string = null;
+  if (hash.startsWith("#code=")) {
+    try {
+      const encodedCode = hash.substring(6);
+      decodedCode = atob(decodeURIComponent(encodedCode));
+    } catch (e) {
+      console.error("Failed to decode code from URL:", e);
+    }
+  }
+
+  editor = monaco.editor.create(editorContainer.value, {
+    value: decodedCode ?? samples[0].code,
+    language: "csharp",
+    theme: "vs-light",
+    automaticLayout: true,
+    minimap: { enabled: true },
+    fontSize: 13,
+    scrollBeyondLastLine: false,
+  });
+}
+
+async function copyUrl() {
+  const code = editor.getValue();
+  const encodedCode = encodeURIComponent(btoa(code));
+  const url = `${window.location.origin}${window.location.pathname}#code=${encodedCode}`;
+
+  await navigator.clipboard.writeText(url);
+
+  output.value = "URL copied to clipboard!";
+}
 
 async function runMigration(runType: RunType) {
   if (!window.migrationInterop || executing.value) return;

@@ -27,7 +27,7 @@
     <script>
       // Function to get the base URL for HTTP requests
       window.getBaseUrl = function() {
-        return window.location.href;
+        return window.location.origin + window.location.pathname;
       };
       
       // Function to receive the migration interop from Blazor
