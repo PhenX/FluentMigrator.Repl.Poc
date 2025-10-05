@@ -156,6 +156,9 @@ Without this setup, SQLite may throw TypeInitializationException in the browser.
 
 - **QUICKSTART.md**: Get started in 5 minutes with step-by-step instructions
 - **IMPLEMENTATION.md**: Technical architecture deep-dive and extension guide
+- **WEB_WORKER_ANALYSIS.md**: Comprehensive analysis of running Blazor in Web Workers
+- **SIMPLE_OPTIMIZATION_GUIDE.md**: Easy performance improvements without architectural changes
+- **DECISION_TREE.md**: Visual guide for choosing optimization strategies
 
 ## 🤝 Contributing
 
