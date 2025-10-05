@@ -44,16 +44,19 @@
       </div>
       
       <div class="col-6">
-        <div class="output-section">
-          <div class="section-header">
-            <h3>Output</h3>
-            <button class="btn btn-secondary btn-sm" @click="clearOutput">Clear</button>
-          </div>
-          <pre class="output-container" v-html="output"></pre>
-          
-          <!-- Database Viewer Component -->
-          <DatabaseViewer ref="dbViewer" :schema="dbSchema" />
-        </div>
+        <BTabs>
+          <BTab active>
+            <template #title>🖥️ Output</template>
+            <div class="output-section">
+            <pre class="output-container" v-html="output"></pre>
+            </div>
+          </BTab
+          >
+          <BTab>
+            <template #title>📊 Database viewer <BBadge variant="info" v-if="dbSchema">{{dbSchema.tables.length + dbSchema.views.length}}</BBadge></template>
+            <DatabaseViewer ref="dbViewer" :schema="dbSchema" />
+          </BTab>
+        </BTabs>
       </div>
     </div>
   </div>
@@ -71,7 +74,7 @@ const executing = ref(false)
 const listing = ref(false)
 const previewing = ref(false)
 const dbName = ref('sample')
-const dbSchema = ref(null)
+const dbSchema = ref<Schema>(null)
 const alwaysReset = ref(false)
 const dbViewer = useTemplateRef("dbViewer")
 let editor = null
@@ -83,6 +86,8 @@ enum RunType {
 }
 
 import samples from './samples/index.js';
+import {BBadge, BTab, BTabs} from "bootstrap-vue-next";
+import {Schema} from "./types";
 
 const initEditor = () => {
   if (editorContainer.value) {
@@ -129,11 +134,6 @@ async function runMigration(runType: RunType) {
 
 function resetDatabase() {
   dbName.value = `sample_${Date.now()}`
-}
-
-function clearOutput() {
-  output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
-  dbSchema.value = null
 }
 
 function loadExample(code: string) {

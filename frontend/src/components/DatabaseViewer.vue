@@ -1,7 +1,5 @@
 <template>
   <div class="database-viewer">
-    <h4 class="mb-3">📊 Database Schema</h4>
-    
     <div v-if="!schema || schema.tables.length === 0" class="text-muted">
       No tables created yet. Run a migration to see the database schema.
     </div>
@@ -138,27 +136,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import {Schema} from "../types";
 
-type Schema = {
-  tables: Array<{
-    name: string
-    columns: Array<{
-      name: string
-      type: string
-      constraints: string[]
-    }>
-  }>
-  views?: Array<{
-    name: string
-    sql: string
-  }>
-  indexes?: Array<{
-    name: string
-    tableName: string
-    columns: string[]
-    unique: boolean
-  }>
-};
+
 
 const props = defineProps({
   schema: {
