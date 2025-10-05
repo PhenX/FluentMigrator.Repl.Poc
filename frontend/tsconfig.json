@@ -1,0 +1,12 @@
+﻿{
+  "compilerOptions": {
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+  }
+}

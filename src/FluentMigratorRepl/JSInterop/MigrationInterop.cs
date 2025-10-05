@@ -14,11 +14,11 @@ public class MigrationInterop
     }
 
     [JSInvokable]
-    public async Task<string> ExecuteMigrationAsync(string code, MigrationRunType runType = MigrationRunType.Up)
+    public async Task<string> ExecuteMigrationAsync(string dbName, string code, MigrationRunType runType = MigrationRunType.Up)
     {
-        await _executor.ExecuteMigrationCodeAsync(code, runType);
+        await _executor.ExecuteMigrationCodeAsync(dbName, code, runType);
         
-        return OutputLoggerProvider.Instance.Logger.GetOutput();
+        return OutputLogger.GetOutput();
     }
 
     [JSInvokable]

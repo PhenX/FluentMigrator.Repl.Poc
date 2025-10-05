@@ -13,13 +13,24 @@
           <div class="section-header">
             <h3>C# Migration Code</h3>
             <div>
-              <button class="btn btn-outline-info btn-sm me-2" @click="runMigration(1)" :disabled="!blazorReady || executing || listing">
+              <div class="form-check form-check-inline me-3">
+                <input class="form-check-input" type="checkbox" id="alwaysReset" v-model="alwaysReset" :disabled="!blazorReady || executing || listing">
+                <label class="form-check-label" for="alwaysReset">
+                  Always reset database
+                </label>
+              </div>
+              
+              <button class="btn btn-outline-danger btn-sm me-2" @click="resetDatabase()" :disabled="!blazorReady || executing || listing">
+                💣 Reset database
+              </button>
+              
+              <button class="btn btn-outline-info btn-sm me-2" @click="runMigration(RunType.List)" :disabled="!blazorReady || executing || listing">
                 📋 List
               </button>
-              <button class="btn btn-outline-warning btn-sm me-2" @click="runMigration(2)" :disabled="!blazorReady || executing || previewing">
+              <button class="btn btn-outline-warning btn-sm me-2" @click="runMigration(RunType.Preview)" :disabled="!blazorReady || executing || previewing">
                 👁️ Preview
               </button>
-              <button class="btn btn-primary" @click="runMigration(0)" :disabled="!blazorReady || executing">
+              <button class="btn btn-primary" @click="runMigration(RunType.Run)" :disabled="!blazorReady || executing">
                 ▶️ Run Migration
               </button>
             </div>
@@ -27,9 +38,7 @@
           <div ref="editorContainer" class="editor-container"></div>
           <div class="examples mt-3">
             <h4>Quick Examples:</h4>
-            <button class="btn btn-secondary btn-sm me-2" @click="loadExample('simple')">Simple Table</button>
-            <button class="btn btn-secondary btn-sm me-2" @click="loadExample('foreignKeys')">With Foreign Keys</button>
-            <button class="btn btn-secondary btn-sm" @click="loadExample('indexes')">With Indexes</button>
+            <button class="btn btn-secondary btn-sm me-2" v-for="migration of samples" @click="loadExample(migration.code)">{{migration.title}}</button>
           </div>
         </div>
       </div>
@@ -40,7 +49,7 @@
             <h3>Output</h3>
             <button class="btn btn-secondary btn-sm" @click="clearOutput">Clear</button>
           </div>
-          <pre class="output-container">{{ output }}</pre>
+          <pre class="output-container" v-html="output"></pre>
           
           <!-- Database Viewer Component -->
           <DatabaseViewer ref="dbViewer" :schema="dbSchema" />
@@ -50,7 +59,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, useTemplateRef } from 'vue'
 import monaco from './monaco-config'
 import DatabaseViewer from './components/DatabaseViewer.vue'
@@ -61,98 +70,24 @@ const blazorReady = ref(false)
 const executing = ref(false)
 const listing = ref(false)
 const previewing = ref(false)
+const dbName = ref('sample')
 const dbSchema = ref(null)
+const alwaysReset = ref(false)
 const dbViewer = useTemplateRef("dbViewer")
 let editor = null
 
-const defaultCode = `using FluentMigrator;
-
-[Migration(202501010001)]
-public class CreateUsersTable : Migration
-{
-public override void Up()
-{
-    Create.Table("Users")
-        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-        .WithColumn("Username").AsString(50).NotNullable()
-        .WithColumn("Email").AsString(100).NotNullable()
-        .WithColumn("CreatedAt").AsDateTime().NotNullable()
-            .WithDefault(SystemMethods.CurrentDateTime);
+enum RunType {
+  Run = 0,
+  List = 1,
+  Preview = 2
 }
 
-public override void Down()
-{
-    Delete.Table("Users");
-}
-}`
-
-const examples = {
-  simple: defaultCode,
-  foreignKeys: `using FluentMigrator;
-
-[Migration(202501010002)]
-public class CreatePostsTable : Migration
-{
-public override void Up()
-{
-    Create.Table("Posts")
-        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-        .WithColumn("UserId").AsInt32().NotNullable()
-            .ForeignKey("Users", "Id")
-        .WithColumn("Title").AsString(200).NotNullable()
-        .WithColumn("Content").AsString().Nullable()
-        .WithColumn("CreatedAt").AsDateTime().NotNullable()
-            .WithDefault(SystemMethods.CurrentDateTime);
-}
-
-public override void Down()
-{
-    Delete.Table("Posts");
-}
-}`,
-  indexes: `using FluentMigrator;
-
-[Migration(202501010003)]
-public class CreateOrdersWithIndexes : Migration
-{
-public override void Up()
-{
-    Create.Table("Orders")
-        .WithColumn("Id").AsInt32().PrimaryKey().Identity()
-        .WithColumn("CustomerId").AsInt32().NotNullable()
-        .WithColumn("OrderNumber").AsString(50).NotNullable()
-        .WithColumn("OrderDate").AsDateTime().NotNullable()
-        .WithColumn("Status").AsString(20).NotNullable();
-        
-    Create.Index("IX_Orders_CustomerId")
-        .OnTable("Orders")
-        .OnColumn("CustomerId");
-        
-    Create.Index("IX_Orders_OrderDate")
-        .OnTable("Orders")
-        .OnColumn("OrderDate")
-        .Descending();
-        
-    Create.Index("IX_Orders_OrderNumber")
-        .OnTable("Orders")
-        .OnColumn("OrderNumber")
-        .Unique();
-}
-
-public override void Down()
-{
-    Delete.Index("IX_Orders_OrderNumber");
-    Delete.Index("IX_Orders_OrderDate");
-    Delete.Index("IX_Orders_CustomerId");
-    Delete.Table("Orders");
-}
-}`
-}
+import samples from './samples/index.js';
 
 const initEditor = () => {
   if (editorContainer.value) {
     editor = monaco.editor.create(editorContainer.value, {
-      value: defaultCode,
+      value: samples[0].code,
       language: 'csharp',
       theme: 'vs-dark',
       automaticLayout: true,
@@ -163,21 +98,24 @@ const initEditor = () => {
   }
 }
 
-const runMigration = async (runType) => {
+async function runMigration(runType: RunType) {
   if (!window.migrationInterop || executing.value) return
-  
+
+  if (alwaysReset.value || !dbName.value) {
+    resetDatabase()
+  }
+
   executing.value = true
   output.value = 'Executing migration...'
-  
+
   try {
     const code = editor.getValue()
-    const result = await window.migrationInterop.invokeMethodAsync('ExecuteMigrationAsync', code, runType)
-    output.value = result
-    
+    output.value = await window.migrationInterop.invokeMethodAsync<string>('ExecuteMigrationAsync', dbName.value, code, runType)
+
     // Load the database schema
-    const schemaJson = await window.migrationInterop.invokeMethodAsync('GetDatabaseSchemaAsync')
+    const schemaJson = await window.migrationInterop.invokeMethodAsync<string>('GetDatabaseSchemaAsync')
     dbSchema.value = JSON.parse(schemaJson)
-    
+
     // Refresh table data in the viewer
     if (dbViewer.value) {
       dbViewer.value.refreshAllData()
@@ -189,14 +127,18 @@ const runMigration = async (runType) => {
   }
 }
 
-const clearOutput = () => {
+function resetDatabase() {
+  dbName.value = `sample_${Date.now()}`
+}
+
+function clearOutput() {
   output.value = 'Ready to run migrations. Click \'Run Migration\' to execute your code.'
   dbSchema.value = null
 }
 
-const loadExample = (exampleName) => {
-  if (editor && examples[exampleName]) {
-    editor.setValue(examples[exampleName])
+function loadExample(code: string) {
+  if (editor && code) {
+    editor.setValue(code)
   }
 }
 

@@ -16,6 +16,8 @@ public class MigrationExecutor
     private readonly IBlazorHttpClientFactory _httpClientFactory;
     private readonly ILogger _logger;
     private string _lastConnectionString = "";
+    
+    private static IDictionary<string, PortableExecutableReference> _wasmReferenceCache = new Dictionary<string, PortableExecutableReference>();
 
     public MigrationExecutor(IResourceResolver resourceResolver, IBlazorHttpClientFactory httpClientFactory, ILogger logger)
     {
@@ -24,16 +26,14 @@ public class MigrationExecutor
         _logger = logger;
     }
 
-    public async Task ExecuteMigrationCodeAsync(string userCode, MigrationRunType runType = MigrationRunType.Up)
+    public async Task ExecuteMigrationCodeAsync(string dbName, string userCode, MigrationRunType runType = MigrationRunType.Up)
     {
         try
         {
-            _logger.LogInformation("=== FluentMigrator REPL - Executing Migration ===");
-            
             // Validate user code is provided
             if (string.IsNullOrWhiteSpace(userCode))
             {
-                _logger.LogWarning("⚠️  No code provided. Please enter migration code in the editor.");
+                _logger.LogWarning("No code provided. Please enter migration code in the editor.");
                 return;
             }
             
@@ -46,11 +46,11 @@ public class MigrationExecutor
                 return;
             }
             
-            _logger.LogInformation("✓ Code compiled successfully");
+            _logger.LogInformation("✅ Code compiled successfully");
             
             // Create an in-memory SQLite database
-            _lastConnectionString = "Data Source=sample.db;";
-            _logger.LogInformation($"🔗 Connection: {_lastConnectionString}");
+            _lastConnectionString = $"Data Source={dbName}.db;";
+            _logger.LogInformation("🔗 Connection: {LastConnectionString}", _lastConnectionString);
             
             // Execute migrations from the compiled assembly
             await ExecuteMigrationsAsync(_lastConnectionString, assembly, runType);
@@ -59,12 +59,7 @@ public class MigrationExecutor
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"❌ ERROR: {ex.GetType().Name}: {ex.Message}");
-            if (ex.InnerException != null)
-            {
-                _logger.LogInformation($"   Inner: {ex.InnerException.Message}");
-            }
-            _logger.LogInformation($"Stack: {ex.StackTrace}");
+            _logger.LogError(ex, "An error occured during execution");
         }
     }
 
@@ -238,10 +233,10 @@ public class MigrationExecutor
     {
         var columns = new List<string>();
 
-        using var command = connection.CreateCommand();
+        await using var command = connection.CreateCommand();
         command.CommandText = $"PRAGMA index_info(\"{indexName}\")";
 
-        using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             columns.Add(reader.GetString(2));
@@ -254,14 +249,15 @@ public class MigrationExecutor
     {
         var views = new List<object>();
 
-        using var command = connection.CreateCommand();
+        await using var command = connection.CreateCommand();
+        
         command.CommandText = @"
             SELECT name, sql 
             FROM sqlite_master 
             WHERE type = 'view'
             ORDER BY name";
 
-        using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             views.Add(new
@@ -321,7 +317,7 @@ public class MigrationExecutor
             
             if (!result.Success)
             {
-                _logger.LogError("❌ Compilation failed:");
+                _logger.LogError("Compilation failed");
                 
                 var failures = result.Diagnostics.Where(diagnostic =>
                     diagnostic.IsWarningAsError ||
@@ -329,9 +325,8 @@ public class MigrationExecutor
                 
                 foreach (var diagnostic in failures)
                 {
-                    _logger.LogInformation($"  {diagnostic.Id}: {diagnostic.GetMessage()}");
                     var lineSpan = diagnostic.Location.GetLineSpan();
-                    _logger.LogInformation($"    at line {lineSpan.StartLinePosition.Line + 1}");
+                    _logger.LogInformation("{DiagnosticId}: {GetMessage} at line {Line}", diagnostic.Id, diagnostic.GetMessage(), lineSpan.StartLinePosition.Line + 1);
                 }
                 
                 return null;
@@ -346,7 +341,7 @@ public class MigrationExecutor
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"❌ Compilation error: {ex.Message}");
+            _logger.LogError("Compilation error: {ExMessage}", ex.Message);
             return null;
         }
     }
@@ -400,11 +395,17 @@ public class MigrationExecutor
 
     private async Task<PortableExecutableReference> GetMetadataReferenceAsync(string wasmModule)
     {
+        if (_wasmReferenceCache.TryGetValue(wasmModule, out var cachedReference))
+        {
+            return cachedReference;
+        }
+        
         var httpClient = await _httpClientFactory.CreateHttpClient();
         await using var stream = await httpClient.GetStreamAsync(await ResolveResourceStreamUri(wasmModule));
         var peBytes = WebcilConverterUtil.ConvertFromWebcil(stream);
-
+        
         using var peStream = new MemoryStream(peBytes);
-        return MetadataReference.CreateFromStream(peStream);
+        
+        return _wasmReferenceCache[wasmModule] = MetadataReference.CreateFromStream(peStream);
     }
 }

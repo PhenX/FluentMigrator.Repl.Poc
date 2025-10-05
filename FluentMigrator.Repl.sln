@@ -15,14 +15,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentMigratorRepl", "src\FluentMigratorRepl\FluentMigratorRepl.csproj", "{92AE1792-B50F-4865-8F9E-37C108B04C42}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "frontend", "frontend", "{CE609670-85B9-0D16-FB54-ED063D5D8A6D}"
-	ProjectSection(SolutionItems) = preProject
-		frontend\package.json = frontend\package.json
-		frontend\vite.config.js = frontend\vite.config.js
-		frontend\index.html = frontend\index.html
-		frontend\README.md = frontend\README.md
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

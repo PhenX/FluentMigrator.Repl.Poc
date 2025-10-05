@@ -136,13 +136,33 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 
+type Schema = {
+  tables: Array<{
+    name: string
+    columns: Array<{
+      name: string
+      type: string
+      constraints: string[]
+    }>
+  }>
+  views?: Array<{
+    name: string
+    sql: string
+  }>
+  indexes?: Array<{
+    name: string
+    tableName: string
+    columns: string[]
+    unique: boolean
+  }>
+};
 
 const props = defineProps({
   schema: {
-    type: Object,
+    type: Object as () => Schema | null,
     required: false,
     default: null
   }
@@ -154,7 +174,7 @@ const tableData = ref({})
 const viewData = ref({})
 const loadingTable = ref(null)
 
-const toggleTable = (tableName) => {
+function toggleTable(tableName: string) {
   const idx = expandedTables.value.indexOf(tableName)
   if (idx === -1) {
     expandedTables.value.push(tableName)
@@ -165,7 +185,7 @@ const toggleTable = (tableName) => {
   }
 }
 
-const toggleView = (viewName) => {
+function toggleView(viewName: string) {
   const idx = expandedViews.value.indexOf(viewName)
   if (idx === -1) {
     expandedViews.value.push(viewName)
@@ -174,48 +194,48 @@ const toggleView = (viewName) => {
   }
 }
 
-const getTableIndexes = (tableName) => {
+function getTableIndexes(tableName: string) {
   if (!props.schema || !props.schema.indexes) return []
   return props.schema.indexes.filter(idx => idx.tableName === tableName)
 }
 
-const loadTableData = async (tableName) => {
+async function loadTableData(tableName: string) {
   if (!window.migrationInterop) return
-  
+
   loadingTable.value = tableName
   try {
-    const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', tableName)
+    const result = await window.migrationInterop.invokeMethodAsync<string>('GetTableDataAsync', tableName)
     tableData.value[tableName] = JSON.parse(result)
   } catch (error) {
     console.error('Error loading table data:', error)
-    tableData.value[tableName] = { columns: [], rows: [] }
+    tableData.value[tableName] = {columns: [], rows: []}
   } finally {
     loadingTable.value = null
   }
 }
 
-const loadViewData = async (viewName) => {
+async function loadViewData(viewName: string) {
   if (!window.migrationInterop) return
-  
+
   loadingTable.value = viewName
   try {
-    const result = await window.migrationInterop.invokeMethodAsync('GetTableDataAsync', viewName)
+    const result = await window.migrationInterop.invokeMethodAsync<string>('GetTableDataAsync', viewName)
     viewData.value[viewName] = JSON.parse(result)
   } catch (error) {
     console.error('Error loading view data:', error)
-    viewData.value[viewName] = { columns: [], rows: [] }
+    viewData.value[viewName] = {columns: [], rows: []}
   } finally {
     loadingTable.value = null
   }
 }
 
-const formatValue = (value) => {
+function formatValue(value: any) {
   if (value === null || value === undefined) return '(null)'
   if (typeof value === 'string' && value.length > 100) return value.substring(0, 100) + '...'
   return value
 }
 
-const refreshAllData = () => {
+function refreshAllData() {
   // Refresh all expanded tables
   expandedTables.value.forEach(tableName => {
     loadTableData(tableName)

@@ -14,19 +14,24 @@ public class OutputLogger : ILogger, IDisposable
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
+        var now = DateTime.Now.ToString("HH:mm:ss");
+        var prefix = $"<span class=\"text-muted\">[{now}]</span> ";
+        
         switch (logLevel)
         {
             case LogLevel.Trace:
             case LogLevel.Debug:
+                _stringBuilder.AppendLine($"{prefix}<span class=\"text-muted\">{formatter(state, exception)}</span>");
+                break;
             case LogLevel.Information:
-                _stringBuilder.AppendLine(formatter(state, exception));
+                _stringBuilder.AppendLine($"{prefix}{formatter(state, exception)}");
                 break;
             case LogLevel.Warning:
-                _stringBuilder.AppendLine($"WARNING: {formatter(state, exception)}");
+                _stringBuilder.AppendLine($"{prefix}<span class=\"text-warning\">{formatter(state, exception)}</span>");
                 break;
             case LogLevel.Error:
             case LogLevel.Critical:
-                _stringBuilder.AppendLine($"ERROR: {formatter(state, exception)}");
+                _stringBuilder.AppendLine($"{prefix}<span class=\"text-error\">{formatter(state, exception)}</span>");
                 if (exception != null)
                     _stringBuilder.AppendLine(exception.ToString());
                 break;
@@ -37,9 +42,12 @@ public class OutputLogger : ILogger, IDisposable
         }
     }
     
-    public string GetOutput()
+    public static string GetOutput()
     {
-        return _stringBuilder.ToString();
+        var output = _stringBuilder.ToString();
+        _stringBuilder.Clear();
+        
+        return output;
     }
 
     public bool IsEnabled(LogLevel logLevel)
