@@ -49,11 +49,11 @@ npm run build
 # Build Vue frontend
 npm run build
 
-# Build Blazor WASM
+# Build Blazor WASM. Do not use publish to disable trimming
 cd ../src/FluentMigratorRepl
-dotnet publish -c Release
+dotnet build -c Release
 
-# Deploy the entire wwwroot folder
+# Deploy the entire bin/Release/net9.0/wwwroot folder
 ```
 
 The build process outputs to `../src/FluentMigratorRepl/wwwroot/`, which is served by the Blazor app.
