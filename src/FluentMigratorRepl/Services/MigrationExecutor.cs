@@ -390,7 +390,7 @@ public class MigrationExecutor
     private async Task<string> ResolveResourceStreamUri(string resource)
     {
         var resolved = await _resourceResolver.ResolveResource(resource);
-        return $"/_framework/{resolved}";
+        return $"./_framework/{resolved}";
     }
 
     private async Task<PortableExecutableReference> GetMetadataReferenceAsync(string wasmModule)
