@@ -10,11 +10,17 @@
   </header>
 
   <div class="container-fluid mt-2">
-    <div class="row">
-      <div class="col-6">
+      <BOverlay
+        :show="loading"
+        spinner-variant="primary"
+        spinner-type="grow"
+        :opacity="0.5"
+        class="row"
+      >
+      <div class="col-12 col-lg-6">
         <div class="editor-section">
           <div class="section-header mb-2">
-            <h3>C# Migration Code</h3>
+            <h3 class="d-none d-xl-block">C# Migration Code</h3>
             <button class="btn btn-sm btn-info" @click="copyUrl">
               📋 Copy URL
             </button>
@@ -23,46 +29,45 @@
                 <BFormCheckbox
                   id="alwaysReset"
                   v-model="alwaysReset"
-                  :disabled="!blazorReady || executing || listing"
                   switch
-                  class="me-2"
+                  class="ms-2"
                 >
-                  Always reset database
+                  <span class="d-none d-xl-inline">Always reset database</span>
                 </BFormCheckbox>
 
                 <button
-                  class="btn btn-outline-danger btn-sm me-2"
-                  @click="resetDatabase()"
-                  :disabled="!blazorReady || executing || listing"
+                  class="btn btn-outline-danger btn-sm ms-2"
+                  @click="resetDatabase"
+                  type="button"
                 >
                   💣 Reset database
                 </button>
                 <button
-                  class="btn btn-outline-info btn-sm me-2"
+                  class="btn btn-outline-info btn-sm ms-2"
                   @click="runMigration(RunType.List)"
-                  :disabled="!blazorReady || executing || listing"
+                  type="button"
                 >
                   📋 List
                 </button>
                 <button
-                  class="btn btn-outline-warning btn-sm me-2"
+                  class="btn btn-outline-warning btn-sm ms-2"
                   @click="runMigration(RunType.Preview)"
-                  :disabled="!blazorReady || executing || previewing"
+                  type="button"
                 >
                   👁️ Preview
                 </button>
                 <button
-                  class="btn btn-primary"
+                  class="btn btn-primary btn-sm ms-2"
                   @click="runMigration(RunType.Run)"
-                  :disabled="!blazorReady || executing"
+                  type="button"
                 >
-                  ▶️ Run Migration
+                  ▶️ Run
                 </button>
               </BForm>
             </div>
           </div>
           <div ref="editorContainer" class="editor-container"></div>
-          <div class="examples mt-3">
+          <div class="examples mt-3 mb-3">
             <h4>Quick Examples:</h4>
             <button
               class="btn btn-secondary btn-sm me-2"
@@ -75,7 +80,7 @@
         </div>
       </div>
 
-      <div class="col-6">
+      <div class="col-12 col-lg-6">
         <BTabs small>
           <BTab active>
             <template #title>🖥️ Output</template>
@@ -116,15 +121,15 @@
           </BTab>
         </BTabs>
       </div>
-    </div>
+    </BOverlay>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, useTemplateRef } from "vue";
+import {ref, onMounted, useTemplateRef, computed} from "vue";
 import monaco from "./monaco-config";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
-import { BBadge, BTab, BTabs, BFormCheckbox, BForm } from "bootstrap-vue-next";
+import {BBadge, BTab, BTabs, BFormCheckbox, BForm, BOverlay} from "bootstrap-vue-next";
 import samples from "./samples/index.js";
 import { Schema } from "./types";
 
@@ -140,6 +145,7 @@ const dbName = ref("sample");
 const dbSchema = ref<Schema>(null);
 const alwaysReset = ref(false);
 const dbViewer = useTemplateRef("dbViewer");
+const loading = computed(() => !blazorReady.value || executing.value || listing.value);
 let editor = null;
 
 enum RunType {
@@ -170,7 +176,7 @@ function initEditor() {
     language: "csharp",
     theme: "vs-light",
     automaticLayout: true,
-    minimap: { enabled: true },
+    minimap: { enabled: false },
     fontSize: 13,
     scrollBeyondLastLine: false,
   });

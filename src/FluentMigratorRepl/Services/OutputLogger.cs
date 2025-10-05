@@ -31,9 +31,7 @@ public class OutputLogger : ILogger, IDisposable
                 break;
             case LogLevel.Error:
             case LogLevel.Critical:
-                _stringBuilder.AppendLine($"{prefix}<span class=\"text-error\">{formatter(state, exception)}</span>");
-                if (exception != null)
-                    _stringBuilder.AppendLine(exception.ToString());
+                _stringBuilder.AppendLine($"{prefix}<span class=\"text-danger\">{formatter(state, exception) + (exception != null ? exception.ToString() : "")}</span>");
                 break;
             case LogLevel.None:
                 break;
