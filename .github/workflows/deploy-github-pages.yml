@@ -42,7 +42,9 @@ jobs:
 
       - name: Build Blazor WASM
         working-directory: src/FluentMigratorRepl
-        run: dotnet build -c Release
+        run: |
+          dotnet workload restore
+          dotnet build -c Release
 
       - name: Copy static assets to build output
         run: |
