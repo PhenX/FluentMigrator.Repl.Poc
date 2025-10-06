@@ -22,6 +22,14 @@ public class MigrationInterop
     }
 
     [JSInvokable]
+    public async Task<string> PreloadAsync()
+    {
+        await _executor.PreloadAsync();
+        
+        return OutputLogger.GetOutput();
+    }
+
+    [JSInvokable]
     public async Task<string> GetDatabaseSchemaAsync()
     {
         return await _executor.GetDatabaseSchemaAsync();

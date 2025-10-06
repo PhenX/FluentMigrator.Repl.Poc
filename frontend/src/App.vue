@@ -20,8 +20,7 @@
       <div class="col-12 col-lg-6">
         <div class="editor-section">
           <div class="section-header mb-2">
-            <h3 class="d-none d-xl-block">C# Migration Code</h3>
-            <button class="btn btn-sm btn-info" @click="copyUrl">
+            <button class="btn btn-sm btn-outline-dark" @click="copyUrl">
               📋 Copy URL
             </button>
             <div>
@@ -32,7 +31,7 @@
                   switch
                   class="ms-2"
                 >
-                  <span class="d-none d-xl-inline">Always reset database</span>
+                  <span class="d-none d-xl-inline">Always reset DB</span>
                 </BFormCheckbox>
 
                 <button
@@ -40,7 +39,7 @@
                   @click="resetDatabase"
                   type="button"
                 >
-                  💣 Reset database
+                  💣 Reset DB
                 </button>
                 <button
                   class="btn btn-outline-info btn-sm ms-2"
@@ -81,7 +80,7 @@
       </div>
 
       <div class="col-12 col-lg-6">
-        <BTabs small>
+        <BTabs>
           <BTab active>
             <template #title>🖥️ Output</template>
             <div class="output-section">
@@ -139,13 +138,12 @@ const output = ref(
 );
 const blazorReady = ref(false);
 const executing = ref(false);
-const listing = ref(false);
-const previewing = ref(false);
 const dbName = ref("sample");
 const dbSchema = ref<Schema>(null);
 const alwaysReset = ref(false);
 const dbViewer = useTemplateRef("dbViewer");
-const loading = computed(() => !blazorReady.value || executing.value || listing.value);
+const preloaded = ref(false);
+const loading = computed(() => !blazorReady.value || executing.value);
 let editor = null;
 
 enum RunType {
@@ -177,7 +175,7 @@ function initEditor() {
     theme: "vs-light",
     automaticLayout: true,
     minimap: { enabled: false },
-    fontSize: 13,
+    fontSize: 12,
     scrollBeyondLastLine: false,
   });
 }
@@ -238,19 +236,31 @@ function loadExample(code: string) {
   }
 }
 
-onMounted(() => {
+async function preload() {
+  if (preloaded.value) return;
+  
+  blazorReady.value = true;
+  executing.value = true;
+  
+  try {
+    output.value = await window.migrationInterop.invokeMethodAsync<string>("PreloadAsync");
+  } catch (error) {
+    output.value = `Error during preload: ${error.message}`;
+  } finally {
+    executing.value = false;
+    preloaded.value = true;
+  }
+}
+
+onMounted(async () => {
   initEditor();
 
   // Wait for Blazor WASM to be ready
-  window.addEventListener("blazor-ready", () => {
-    blazorReady.value = true;
-    output.value = "Blazor WASM loaded! Ready to execute migrations.";
-  });
+  window.addEventListener("blazor-ready", preload);
 
   // Check if already ready
   if (window.migrationInterop) {
-    blazorReady.value = true;
-    output.value = "Blazor WASM loaded! Ready to execute migrations.";
+    await preload()
   }
 });
 </script>

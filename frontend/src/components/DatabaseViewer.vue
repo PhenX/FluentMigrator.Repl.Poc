@@ -78,16 +78,7 @@
 
           <!-- Table Data -->
           <div class="table-data">
-            <h6>
-              Data:
-              <button
-                class="btn btn-sm btn-outline-primary ms-2"
-                @click="loadTableData(table.name)"
-              >
-                <span v-if="loadingTable === table.name">Loading...</span>
-                <span v-else>Refresh</span>
-              </button>
-            </h6>
+            <h6>Data:</h6>
 
             <div v-if="tableData[table.name]">
               <div
@@ -313,7 +304,7 @@ defineExpose({ refreshAllData });
 .toggle-icon {
   display: inline-block;
   width: 20px;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: #6c757d;
 }
 
@@ -328,28 +319,22 @@ defineExpose({ refreshAllData });
 .table-structure h6,
 .table-indexes h6,
 .table-data h6 {
-  font-size: 0.9rem;
   font-weight: 600;
   color: #495057;
   margin-bottom: 0.5rem;
-}
-
-.table {
-  font-size: 0.85rem;
 }
 
 code {
   background-color: #f8f9fa;
   padding: 2px 6px;
   border-radius: 3px;
-  font-size: 0.9em;
 }
 
 .sql-display {
   background-color: #f8f9fa;
   padding: 0.75rem;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   margin-bottom: 0.5rem;
 }
 

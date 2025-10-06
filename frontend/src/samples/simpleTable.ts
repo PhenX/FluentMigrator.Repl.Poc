@@ -1,7 +1,8 @@
 ﻿const migrationCode = `using FluentMigrator;
 
 // This is a sample migration that creates a simple Users table.
-// You can create one or migrations here and click "Run Migrations" button to apply them to the database.
+// You can create one or more migrations here and click "Run Migrations" button 
+// to apply them to the database.
 
 [Migration(202501010001)]
 public class CreateUsersTable : Migration

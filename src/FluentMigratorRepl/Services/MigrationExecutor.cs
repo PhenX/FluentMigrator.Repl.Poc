@@ -63,6 +63,38 @@ public class MigrationExecutor
         }
     }
 
+    public async Task PreloadAsync()
+    {
+        try
+        {
+            await CompileSyntaxTrees();
+
+            _logger.LogInformation("✅ Preload completed successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occured during preload");
+        }
+    }
+
+    private async Task<(EmitResult Result, MemoryStream MemoryStream)> CompileSyntaxTrees(IEnumerable<SyntaxTree>? syntaxTrees = null)
+    {
+        var references = await LoadReferences();
+            
+        // Create compilation
+        var assemblyName = $"UserMigration_{Guid.NewGuid():N}";
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            syntaxTrees,
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            
+        // Compile to memory stream
+        var ms = new MemoryStream();
+        
+        return (compilation.Emit(ms), ms);
+    }
+
     public async Task<string> GetDatabaseSchemaAsync()
     {
         if (string.IsNullOrEmpty(_lastConnectionString))
@@ -278,42 +310,7 @@ public class MigrationExecutor
             var syntaxTree = CSharpSyntaxTree.ParseText(userCode);
             
             // Get references to required assemblies from WASM framework
-            var references = new List<MetadataReference>
-            {
-                await GetMetadataReferenceAsync("netstandard.wasm"),
-                await GetMetadataReferenceAsync("System.wasm"),
-                await GetMetadataReferenceAsync("System.Collections.wasm"),
-                await GetMetadataReferenceAsync("System.ComponentModel.Primitives.wasm"),
-                await GetMetadataReferenceAsync("System.ComponentModel.TypeConverter.wasm"),
-                await GetMetadataReferenceAsync("System.ComponentModel.wasm"),
-                await GetMetadataReferenceAsync("System.Console.wasm"),
-                await GetMetadataReferenceAsync("System.Data.Common.wasm"),
-                await GetMetadataReferenceAsync("System.Linq.wasm"),
-                await GetMetadataReferenceAsync("System.Private.CoreLib.wasm"),
-                await GetMetadataReferenceAsync("System.Runtime.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Data.Sqlite.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.Abstractions.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.Abstractions.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.wasm"),
-                await GetMetadataReferenceAsync("Microsoft.Extensions.Options.wasm"),
-                await GetMetadataReferenceAsync("FluentMigrator.Abstractions.wasm"),
-                await GetMetadataReferenceAsync("FluentMigrator.Runner.Core.wasm"),
-                await GetMetadataReferenceAsync("FluentMigrator.Runner.SQLite.wasm"),
-                await GetMetadataReferenceAsync("FluentMigrator.wasm"),
-            };
-            
-            // Create compilation
-            var assemblyName = $"UserMigration_{Guid.NewGuid():N}";
-            var compilation = CSharpCompilation.Create(
-                assemblyName,
-                new[] { syntaxTree },
-                references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            
-            // Compile to memory stream
-            using var ms = new MemoryStream();
-            EmitResult result = compilation.Emit(ms);
+            var (result, ms) = await CompileSyntaxTrees([syntaxTree]);
             
             if (!result.Success)
             {
@@ -336,7 +333,8 @@ public class MigrationExecutor
             ms.Seek(0, SeekOrigin.Begin);
             var assembly = Assembly.Load(ms.ToArray());
             
-            await Task.CompletedTask;
+            await ms.DisposeAsync();
+            
             return assembly;
         }
         catch (Exception ex)
@@ -345,10 +343,34 @@ public class MigrationExecutor
             return null;
         }
     }
-    
+
+    public async Task<List<MetadataReference>> LoadReferences() =>
+    [
+        await GetMetadataReferenceAsync("netstandard.wasm"),
+        await GetMetadataReferenceAsync("System.wasm"),
+        await GetMetadataReferenceAsync("System.Collections.wasm"),
+        await GetMetadataReferenceAsync("System.ComponentModel.Primitives.wasm"),
+        await GetMetadataReferenceAsync("System.ComponentModel.TypeConverter.wasm"),
+        await GetMetadataReferenceAsync("System.ComponentModel.wasm"),
+        await GetMetadataReferenceAsync("System.Console.wasm"),
+        await GetMetadataReferenceAsync("System.Data.Common.wasm"),
+        await GetMetadataReferenceAsync("System.Linq.wasm"),
+        await GetMetadataReferenceAsync("System.Private.CoreLib.wasm"),
+        await GetMetadataReferenceAsync("System.Runtime.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Data.Sqlite.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.Abstractions.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Extensions.DependencyInjection.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.Abstractions.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Extensions.Logging.wasm"),
+        await GetMetadataReferenceAsync("Microsoft.Extensions.Options.wasm"),
+        await GetMetadataReferenceAsync("FluentMigrator.Abstractions.wasm"),
+        await GetMetadataReferenceAsync("FluentMigrator.Runner.Core.wasm"),
+        await GetMetadataReferenceAsync("FluentMigrator.Runner.SQLite.wasm"),
+        await GetMetadataReferenceAsync("FluentMigrator.wasm"),
+    ];
+
     private async Task ExecuteMigrationsAsync(string connectionString, Assembly migrationAssembly, MigrationRunType runType)
     {
-        // Set up FluentMigrator services WITHOUT console logging (causes WASM issues)
         var serviceProvider = new ServiceCollection()
             .AddLogging(lb => lb
                 .SetMinimumLevel(LogLevel.Information)
