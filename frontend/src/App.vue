@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header">
+  <header class="app-header" v-if="fullPage">
     <div class="container d-flex justify-content-between align-items-center">
       <div>
         <h1>🔧 FluentMigrator REPL</h1>
@@ -20,10 +20,10 @@
         :opacity="0.5"
         class="row"
       >
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-6 g-0 g-lg-1">
         <div class="editor-section">
           <div class="section-header mb-2">
-            <button class="btn btn-sm btn-outline-dark" @click="copyUrl">
+            <button class="btn btn-sm btn-outline-dark" @click="copyUrl" v-if="fullPage">
               📋 Copy URL
             </button>
             <div>
@@ -34,7 +34,7 @@
                   switch
                   class="ms-2"
                 >
-                  <span class="d-none d-xl-inline">Always reset DB</span>
+                  <span class="d-xl-inline">Always reset DB</span>
                 </BFormCheckbox>
 
                 <button
@@ -68,8 +68,10 @@
               </BForm>
             </div>
           </div>
+          
           <div ref="editorContainer" class="editor-container"></div>
-          <div class="examples mt-3 mb-3">
+          
+          <div class="examples mt-3 mb-3" v-if="fullPage">
             <h4>Quick Examples:</h4>
             <button
               class="btn btn-secondary btn-sm me-2"
@@ -82,8 +84,8 @@
         </div>
       </div>
 
-      <div class="col-12 col-lg-6">
-        <BTabs>
+      <div class="col-12 col-lg-6 mt-1 mt-lg-0 g-0 g-lg-1">
+        <BTabs small>
           <BTab active>
             <template #title>🖥️ Output</template>
             <div class="output-section">
@@ -150,6 +152,10 @@ const dbSchema = ref<Schema>(null);
 const alwaysReset = ref(false);
 const dbViewer = useTemplateRef("dbViewer");
 const preloaded = ref(false);
+
+// Fullpage when "?embed" is not present in URL
+const fullPage = computed(() => !window.location.search.includes("embed"));
+
 const loading = computed(() => !blazorReady.value || executing.value);
 let editor = null;
 
