@@ -39,6 +39,7 @@ const currentIcon = computed(() => {
 <style scoped lang="scss">
 :deep(.theme-toggle-btn) {
   padding: 0.25rem 0.5rem;
+  // Override Bootstrap's btn-link color to ensure visibility on the header gradient
   color: white !important;
   text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.3);

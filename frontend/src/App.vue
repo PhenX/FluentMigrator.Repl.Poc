@@ -128,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, useTemplateRef, computed, watch} from "vue";
+import {ref, onMounted, onUnmounted, useTemplateRef, computed, watch} from "vue";
 import monaco from "./monaco-config";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
@@ -137,7 +137,7 @@ import samples from "./samples/index.js";
 import { Schema } from "./types";
 import { useTheme } from "./composables/useTheme";
 
-const { effectiveTheme, initTheme } = useTheme();
+const { effectiveTheme, initTheme, cleanupTheme } = useTheme();
 
 const editorContainer = ref(null);
 const output = ref(
@@ -278,5 +278,9 @@ onMounted(async () => {
   if (window.migrationInterop) {
     await preload()
   }
+});
+
+onUnmounted(() => {
+  cleanupTheme();
 });
 </script>

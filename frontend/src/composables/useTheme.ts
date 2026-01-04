@@ -1,4 +1,4 @@
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, type WatchStopHandle } from "vue";
 
 export type ThemePreference = "auto" | "dark" | "light";
 
@@ -23,7 +23,8 @@ const effectiveTheme = computed<"dark" | "light">(() => {
   if (preference.value === "auto") {
     return systemDark.value ? "dark" : "light";
   }
-  return preference.value;
+  // At this point, preference is "dark" | "light"
+  return preference.value as "dark" | "light";
 });
 
 function setPreference(newPreference: ThemePreference) {
@@ -35,16 +36,32 @@ function applyTheme() {
   document.documentElement.setAttribute("data-bs-theme", effectiveTheme.value);
 }
 
+let mediaQueryListener: ((e: MediaQueryListEvent) => void) | null = null;
+let watchStopHandle: WatchStopHandle | null = null;
+
 function initTheme() {
   // Listen for system preference changes
-  window
-    .matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", (e) => {
-      systemDark.value = e.matches;
-    });
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  mediaQueryListener = (e: MediaQueryListEvent) => {
+    systemDark.value = e.matches;
+  };
+  mediaQuery.addEventListener("change", mediaQueryListener);
 
   // Apply theme whenever effective theme changes
-  watch(effectiveTheme, applyTheme, { immediate: true });
+  watchStopHandle = watch(effectiveTheme, applyTheme, { immediate: true });
+}
+
+function cleanupTheme() {
+  if (mediaQueryListener) {
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .removeEventListener("change", mediaQueryListener);
+    mediaQueryListener = null;
+  }
+  if (watchStopHandle) {
+    watchStopHandle();
+    watchStopHandle = null;
+  }
 }
 
 export function useTheme() {
@@ -53,5 +70,6 @@ export function useTheme() {
     effectiveTheme,
     setPreference,
     initTheme,
+    cleanupTheme,
   };
 }
