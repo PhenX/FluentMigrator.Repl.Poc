@@ -301,6 +301,14 @@ defineExpose({ refreshAllData });
   }
 }
 
+[data-bs-theme="dark"] .schema-item-header {
+  background-color: #2d2d44;
+
+  &:hover {
+    background-color: #3d3d54;
+  }
+}
+
 .toggle-icon {
   display: inline-block;
   width: 20px;
@@ -316,6 +324,11 @@ defineExpose({ refreshAllData });
   margin-bottom: 1rem;
 }
 
+[data-bs-theme="dark"] .schema-content {
+  background-color: #2d2d44;
+  border-color: #444;
+}
+
 .table-structure h6,
 .table-indexes h6,
 .table-data h6 {
@@ -324,10 +337,21 @@ defineExpose({ refreshAllData });
   margin-bottom: 0.5rem;
 }
 
+[data-bs-theme="dark"] .table-structure h6,
+[data-bs-theme="dark"] .table-indexes h6,
+[data-bs-theme="dark"] .table-data h6 {
+  color: #e0e0e0;
+}
+
 code {
   background-color: #f8f9fa;
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+[data-bs-theme="dark"] code {
+  background-color: #3d3d54;
+  color: #e0e0e0;
 }
 
 .sql-display {
@@ -336,6 +360,11 @@ code {
   border-radius: 4px;
   font-size: 0.875rem;
   margin-bottom: 0.5rem;
+}
+
+[data-bs-theme="dark"] .sql-display {
+  background-color: #3d3d54;
+  color: #e0e0e0;
 }
 
 .table-responsive {

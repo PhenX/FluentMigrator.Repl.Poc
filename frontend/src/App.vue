@@ -1,11 +1,14 @@
 <template>
   <header class="app-header">
-    <div class="container">
-      <h1>🔧 FluentMigrator REPL</h1>
-      <p>
-        Try FluentMigrator migrations with SQLite in your browser - No server
-        required!
-      </p>
+    <div class="container d-flex justify-content-between align-items-center">
+      <div>
+        <h1>🔧 FluentMigrator REPL</h1>
+        <p>
+          Try FluentMigrator migrations with SQLite in your browser - No server
+          required!
+        </p>
+      </div>
+      <ThemeToggle />
     </div>
   </header>
 
@@ -125,12 +128,16 @@
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, useTemplateRef, computed} from "vue";
+import {ref, onMounted, useTemplateRef, computed, watch} from "vue";
 import monaco from "./monaco-config";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
+import ThemeToggle from "./components/ThemeToggle.vue";
 import {BBadge, BTab, BTabs, BFormCheckbox, BForm, BOverlay} from "bootstrap-vue-next";
 import samples from "./samples/index.js";
 import { Schema } from "./types";
+import { useTheme } from "./composables/useTheme";
+
+const { effectiveTheme, initTheme } = useTheme();
 
 const editorContainer = ref(null);
 const output = ref(
@@ -169,16 +176,24 @@ function initEditor() {
     }
   }
 
+  const monacoTheme = effectiveTheme.value === "dark" ? "vs-dark" : "vs-light";
   editor = monaco.editor.create(editorContainer.value, {
     value: decodedCode ?? samples[0].code,
     language: "csharp",
-    theme: "vs-light",
+    theme: monacoTheme,
     automaticLayout: true,
     minimap: { enabled: false },
     fontSize: 12,
     scrollBeyondLastLine: false,
   });
 }
+
+// Watch for theme changes and update Monaco editor theme
+watch(effectiveTheme, (newTheme) => {
+  if (editor) {
+    monaco.editor.setTheme(newTheme === "dark" ? "vs-dark" : "vs-light");
+  }
+});
 
 async function copyUrl() {
   const code = editor.getValue();
@@ -253,6 +268,7 @@ async function preload() {
 }
 
 onMounted(async () => {
+  initTheme();
   initEditor();
 
   // Wait for Blazor WASM to be ready
