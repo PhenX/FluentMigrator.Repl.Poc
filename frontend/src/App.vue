@@ -13,13 +13,7 @@
   </header>
 
   <div class="container-fluid mt-1" :class="{embedded: !fullPage}">
-      <BOverlay
-        :show="loading"
-        spinner-variant="primary"
-        spinner-type="grow"
-        :opacity="0.5"
-        class="row"
-      >
+    <div class="row">
       <div class="col-12 col-lg-6 g-0 g-lg-1 px-1">
         <div class="editor-section">
           <div class="section-header mb-2">
@@ -36,14 +30,16 @@
                   v-model="alwaysReset"
                   switch
                   class="ms-2"
+                  :disabled="!preloaded"
                 >
                   <span class="d-xl-inline">Always reset DB</span>
                 </BFormCheckbox>
-
+  
                 <button
                   class="btn btn-outline-danger btn-sm ms-2"
                   @click="resetDatabase"
                   type="button"
+                  :disabled="!preloaded"
                 >
                   💣 Reset DB
                 </button>
@@ -51,6 +47,7 @@
                   class="btn btn-outline-info btn-sm ms-2"
                   @click="runMigration(RunType.List)"
                   type="button"
+                  :disabled="!preloaded"
                 >
                   📋 List
                 </button>
@@ -58,6 +55,7 @@
                   class="btn btn-outline-warning btn-sm ms-2"
                   @click="runMigration(RunType.Preview)"
                   type="button"
+                  :disabled="!preloaded"
                 >
                   👁️ Preview
                 </button>
@@ -65,6 +63,7 @@
                   class="btn btn-primary btn-sm ms-2"
                   @click="runMigration(RunType.Run)"
                   type="button"
+                  :disabled="!preloaded"
                 >
                   ▶️ Run
                 </button>
@@ -86,7 +85,7 @@
           </div>
         </div>
       </div>
-
+  
       <div class="col-12 col-lg-6 mt-1 mt-lg-0 g-0 g-lg-1 px-1">
         <BTabs small>
           <BTab active>
@@ -128,7 +127,7 @@
           </BTab>
         </BTabs>
       </div>
-    </BOverlay>
+    </div>
   </div>
 </template>
 
@@ -137,7 +136,7 @@ import {ref, onMounted, onUnmounted, useTemplateRef, computed, watch} from "vue"
 import monaco from "./monaco-config";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
-import {BBadge, BTab, BTabs, BFormCheckbox, BForm, BOverlay} from "bootstrap-vue-next";
+import {BBadge, BTab, BTabs, BFormCheckbox, BForm} from "bootstrap-vue-next";
 import samples from "./samples/index.js";
 import { Schema } from "./types";
 import { useTheme } from "./composables/useTheme";
@@ -145,10 +144,7 @@ import { useTheme } from "./composables/useTheme";
 const { effectiveTheme, initTheme, cleanupTheme } = useTheme();
 
 const editorContainer = ref(null);
-const output = ref(
-  "Ready to run migrations. Click 'Run Migration' to execute your code.",
-);
-const blazorReady = ref(false);
+const output = ref("Ready to run migrations. Click 'Run Migration' to execute your code.");
 const executing = ref(false);
 const dbName = ref("sample");
 const dbSchema = ref<Schema>(null);
@@ -159,7 +155,6 @@ const preloaded = ref(false);
 // Fullpage when "?embed" is not present in URL
 const fullPage = computed(() => !window.location.search.includes("embed"));
 
-const loading = computed(() => !blazorReady.value || executing.value);
 let editor = null;
 
 enum RunType {
@@ -273,7 +268,6 @@ function loadExample(code: string) {
 async function preload() {
   if (preloaded.value) return;
   
-  blazorReady.value = true;
   executing.value = true;
   
   try {
