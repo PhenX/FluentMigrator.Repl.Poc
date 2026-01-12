@@ -1,12 +1,17 @@
 import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { analyzer } from 'vite-bundle-analyzer'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    //analyzer(),
+  ],
   base: './',
   build: {
     outDir: '../src/FluentMigratorRepl/wwwroot',
     emptyOutDir: false, // Don't delete _framework folder
+    minify: true,
     rollupOptions: {
       output: {
         // Keep assets organized

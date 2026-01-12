@@ -71,7 +71,16 @@
             </div>
           </div>
           
-          <div ref="editorContainer" class="editor-container"></div>
+          <Suspense>
+            <template #default>
+              <MonacoEditor ref="monacoEditor" :initial-value="initialCode" />
+            </template>
+            <template #fallback>
+              <div class="editor-container d-flex align-items-center justify-content-center">
+                <span>Loading editor...</span>
+              </div>
+            </template>
+          </Suspense>
           
           <div class="examples mt-3 mb-3" v-if="fullPage">
             <h4>Quick Examples:</h4>
@@ -132,18 +141,19 @@
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, onUnmounted, useTemplateRef, computed, watch} from "vue";
-import monaco from "./monaco-config";
+import { ref, onMounted, onUnmounted, useTemplateRef, computed, defineAsyncComponent } from "vue";
 import DatabaseViewer from "./components/DatabaseViewer.vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
-import {BBadge, BTab, BTabs, BFormCheckbox, BForm} from "bootstrap-vue-next";
+import { BBadge, BTab, BTabs, BFormCheckbox, BForm } from "bootstrap-vue-next";
 import samples from "./samples/index.js";
 import { Schema } from "./types";
 import { useTheme } from "./composables/useTheme";
 
-const { effectiveTheme, initTheme, cleanupTheme } = useTheme();
+const MonacoEditor = defineAsyncComponent(() => import("./components/MonacoEditor.vue"));
 
-const editorContainer = ref(null);
+const { initTheme, cleanupTheme } = useTheme();
+
+const monacoEditor = useTemplateRef<{ getValue: () => string; setValue: (value: string) => void }>("monacoEditor");
 const output = ref("Ready to run migrations. Click 'Run Migration' to execute your code.");
 const executing = ref(false);
 const dbName = ref("sample");
@@ -155,7 +165,19 @@ const preloaded = ref(false);
 // Fullpage when "?embed" is not present in URL
 const fullPage = computed(() => !window.location.search.includes("embed"));
 
-let editor = null;
+// Get code from URL hash if available
+const initialCode = computed(() => {
+  const hash = window.location.hash;
+  if (hash.startsWith("#code=")) {
+    try {
+      const encodedCode = hash.substring(6);
+      return atob(decodeURIComponent(encodedCode));
+    } catch (e) {
+      console.error("Failed to decode code from URL:", e);
+    }
+  }
+  return samples[0].code;
+});
 
 enum RunType {
   Run = 0,
@@ -163,47 +185,8 @@ enum RunType {
   Preview = 2,
 }
 
-function getMonacoTheme(theme: string) {
-  return theme === "dark" ? "vs-dark" : "vs-light";
-}
-
-function initEditor() {
-  if (!editorContainer.value) {
-    return;
-  }
-
-  // Get code from URL hash if available
-  const hash = window.location.hash;
-  let decodedCode: string = null;
-  if (hash.startsWith("#code=")) {
-    try {
-      const encodedCode = hash.substring(6);
-      decodedCode = atob(decodeURIComponent(encodedCode));
-    } catch (e) {
-      console.error("Failed to decode code from URL:", e);
-    }
-  }
-
-  editor = monaco.editor.create(editorContainer.value, {
-    value: decodedCode ?? samples[0].code,
-    language: "csharp",
-    theme: getMonacoTheme(effectiveTheme.value),
-    automaticLayout: true,
-    minimap: { enabled: false },
-    fontSize: 12,
-    scrollBeyondLastLine: false,
-  });
-}
-
-// Watch for theme changes and update Monaco editor theme
-watch(effectiveTheme, (newTheme) => {
-  if (editor) {
-    monaco.editor.setTheme(getMonacoTheme(newTheme));
-  }
-});
-
 async function copyUrl() {
-  const code = editor.getValue();
+  const code = monacoEditor.value?.getValue() ?? "";
   const encodedCode = encodeURIComponent(btoa(code));
   const url = `${window.location.origin}${window.location.pathname}#code=${encodedCode}`;
 
@@ -211,8 +194,9 @@ async function copyUrl() {
 
   output.value = "URL copied to clipboard!";
 }
+
 async function openInNewWindow() {
-  const code = editor.getValue();
+  const code = monacoEditor.value?.getValue() ?? "";
   const encodedCode = encodeURIComponent(btoa(code));
   const url = `${window.location.origin}${window.location.pathname}#code=${encodedCode}`;
 
@@ -230,7 +214,7 @@ async function runMigration(runType: RunType) {
   output.value = "Executing migration...";
 
   try {
-    const code = editor.getValue();
+    const code = monacoEditor.value?.getValue() ?? "";
     output.value = await window.migrationInterop.invokeMethodAsync<string>(
       "ExecuteMigrationAsync",
       dbName.value,
@@ -260,8 +244,8 @@ function resetDatabase() {
 }
 
 function loadExample(code: string) {
-  if (editor && code) {
-    editor.setValue(code);
+  if (monacoEditor.value && code) {
+    monacoEditor.value.setValue(code);
   }
 }
 
@@ -282,14 +266,13 @@ async function preload() {
 
 onMounted(async () => {
   initTheme();
-  initEditor();
 
   // Wait for Blazor WASM to be ready
   window.addEventListener("blazor-ready", preload);
 
   // Check if already ready
   if (window.migrationInterop) {
-    await preload()
+    await preload();
   }
 });
 
