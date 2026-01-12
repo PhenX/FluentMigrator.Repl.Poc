@@ -12,7 +12,7 @@
     </div>
   </header>
 
-  <div class="container-fluid mt-2">
+  <div class="container-fluid mt-1" :class="{embedded: !fullPage}">
       <BOverlay
         :show="loading"
         spinner-variant="primary"
@@ -20,11 +20,14 @@
         :opacity="0.5"
         class="row"
       >
-      <div class="col-12 col-lg-6 g-0 g-lg-1">
+      <div class="col-12 col-lg-6 g-0 g-lg-1 px-1">
         <div class="editor-section">
           <div class="section-header mb-2">
-            <button class="btn btn-sm btn-outline-dark" @click="copyUrl" v-if="fullPage">
+            <button class="btn btn-sm btn-outline-light" @click="copyUrl" v-if="fullPage">
               📋 Copy URL
+            </button>
+            <button class="btn btn-sm btn-outline-light" @click="openInNewWindow" v-else>
+              ↗ Open in new window
             </button>
             <div>
               <BForm class="d-flex flex-row align-items-center flex-wrap">
@@ -84,7 +87,7 @@
         </div>
       </div>
 
-      <div class="col-12 col-lg-6 mt-1 mt-lg-0 g-0 g-lg-1">
+      <div class="col-12 col-lg-6 mt-1 mt-lg-0 g-0 g-lg-1 px-1">
         <BTabs small>
           <BTab active>
             <template #title>🖥️ Output</template>
@@ -165,6 +168,10 @@ enum RunType {
   Preview = 2,
 }
 
+function getMonacoTheme(theme: string) {
+  return theme === "dark" ? "vs-dark" : "vs-light";
+}
+
 function initEditor() {
   if (!editorContainer.value) {
     return;
@@ -182,11 +189,10 @@ function initEditor() {
     }
   }
 
-  const monacoTheme = effectiveTheme.value === "dark" ? "vs-dark" : "vs-light";
   editor = monaco.editor.create(editorContainer.value, {
     value: decodedCode ?? samples[0].code,
     language: "csharp",
-    theme: monacoTheme,
+    theme: getMonacoTheme(effectiveTheme.value),
     automaticLayout: true,
     minimap: { enabled: false },
     fontSize: 12,
@@ -197,7 +203,7 @@ function initEditor() {
 // Watch for theme changes and update Monaco editor theme
 watch(effectiveTheme, (newTheme) => {
   if (editor) {
-    monaco.editor.setTheme(newTheme === "dark" ? "vs-dark" : "vs-light");
+    monaco.editor.setTheme(getMonacoTheme(newTheme));
   }
 });
 
@@ -209,6 +215,13 @@ async function copyUrl() {
   await navigator.clipboard.writeText(url);
 
   output.value = "URL copied to clipboard!";
+}
+async function openInNewWindow() {
+  const code = editor.getValue();
+  const encodedCode = encodeURIComponent(btoa(code));
+  const url = `${window.location.origin}${window.location.pathname}#code=${encodedCode}`;
+
+  window.open(url, "_blank");
 }
 
 async function runMigration(runType: RunType) {

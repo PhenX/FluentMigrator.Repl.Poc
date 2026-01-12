@@ -306,6 +306,12 @@ public class MigrationExecutor
     {
         try
         {
+            // Add FluentMigrator using directive if not present
+            if (!userCode.Contains("using FluentMigrator;"))
+            {
+                userCode = "using FluentMigrator;\n" + userCode;
+            }
+            
             // Parse the user's code
             var syntaxTree = CSharpSyntaxTree.ParseText(userCode);
             
