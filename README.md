@@ -2,6 +2,9 @@
 
 A Vue.js + Blazor WebAssembly application that allows you to edit and test FluentMigrator C# code offline without any AJAX requests, using WebAssembly technology.
 
+> 📖 **Looking for documentation?** See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for a complete guide to all documentation.  
+> ❓ **Question about Web Workers?** See [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) for the answer.
+
 ## 🚀 Features
 
 - **Monaco Editor**: Professional code editor (same as VS Code) with C# syntax highlighting
@@ -154,8 +157,20 @@ Without this setup, SQLite may throw TypeInitializationException in the browser.
 
 ## 📚 Documentation
 
-- **QUICKSTART.md**: Get started in 5 minutes with step-by-step instructions
-- **IMPLEMENTATION.md**: Technical architecture deep-dive and extension guide
+**📖 [Complete Documentation Index](DOCUMENTATION_INDEX.md)** - Find exactly what you need
+
+### Core Documents:
+- **[EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md)**: ⭐ **START HERE** - Answer to "How complex are Web Workers?" (5 min read)
+- **[DECISION_TREE.md](DECISION_TREE.md)**: Visual guide for optimization decisions (10 min read)
+- **[SIMPLE_OPTIMIZATION_GUIDE.md](SIMPLE_OPTIMIZATION_GUIDE.md)**: 5 easy performance improvements (30 min read)
+- **[WEB_WORKER_ANALYSIS.md](WEB_WORKER_ANALYSIS.md)**: Deep technical analysis (1 hour read)
+- **QUICKSTART.md**: Get started in 5 minutes
+- **IMPLEMENTATION.md**: Technical architecture deep-dive
+
+**Quick Links:**
+- 🚀 New to the project? → [QUICKSTART.md](QUICKSTART.md)
+- 🤔 Considering Web Workers? → [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md)
+- ⚡ Want to optimize now? → [SIMPLE_OPTIMIZATION_GUIDE.md](SIMPLE_OPTIMIZATION_GUIDE.md)
 
 ## 🤝 Contributing
 
